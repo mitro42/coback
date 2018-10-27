@@ -14,6 +14,7 @@ type catalogItem struct {
 	Size             int64     `json:"size"`
 	ModificationTime time.Time `json:"modification_time"`
 	Md5Sum           string    `json:"md5sum"`
+	Deleted          bool      `json:"deleted"`
 }
 
 // newCatalogItem creates a catalogItem for the specified file
@@ -35,5 +36,6 @@ func newCatalogItem(fs afero.Fs, path string) (*catalogItem, error) {
 		Size:             fi.Size(),
 		ModificationTime: fi.ModTime(),
 		Md5Sum:           hex.EncodeToString(hash.Sum(nil)),
+		Deleted:          false,
 	}, nil
 }
