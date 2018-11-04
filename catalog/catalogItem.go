@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/afero"
 )
 
-type catalogItem struct {
+type CatalogItem struct {
 	Path             string    `json:"path"`
 	Size             int64     `json:"size"`
 	ModificationTime time.Time `json:"modification_time"`
@@ -18,7 +18,7 @@ type catalogItem struct {
 }
 
 // newCatalogItem creates a catalogItem for the specified file
-func newCatalogItem(fs afero.Fs, path string) (*catalogItem, error) {
+func newCatalogItem(fs afero.Fs, path string) (*CatalogItem, error) {
 	buf, err := afero.ReadFile(fs, path)
 	if err != nil {
 		return nil, errors.Wrap(err, "Cannot open file")
@@ -31,7 +31,7 @@ func newCatalogItem(fs afero.Fs, path string) (*catalogItem, error) {
 
 	hash := md5.New()
 	hash.Write(buf)
-	return &catalogItem{
+	return &CatalogItem{
 		Path:             path,
 		Size:             fi.Size(),
 		ModificationTime: fi.ModTime(),

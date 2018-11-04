@@ -2,7 +2,6 @@ package catalog
 
 import (
 	"github.com/pkg/errors"
-	"github.com/spf13/afero"
 )
 
 type catalogState = int
@@ -10,10 +9,10 @@ type checksum = string
 
 // Catalog stores information about the contents of a folder
 type Catalog interface {
-	Add(path string) error
+	Add(item CatalogItem) error
 	DeletePath(path string)
-	Item(path string) (catalogItem, error)
-	ItemsByChecksum(sum checksum) ([]catalogItem, error)
+	Item(path string) (CatalogItem, error)
+	ItemsByChecksum(sum checksum) ([]CatalogItem, error)
 	Count() int
 	DeletedCount() int
 	IsDeletedPath(path string) (bool, error)
@@ -22,31 +21,21 @@ type Catalog interface {
 
 type catalog struct {
 	State         catalogState  `json:"state"`
-	Items         []catalogItem `json:"content"`
+	Items         []CatalogItem `json:"content"`
 	pathToIdx     map[string]int
 	checksumToIdx map[string][]int
-	fs            afero.Fs
 }
 
-func newCatalog(fs afero.Fs) Catalog {
+func NewCatalog() Catalog {
 	return &catalog{
-		Items:         make([]catalogItem, 0, 100),
+		Items:         make([]CatalogItem, 0, 100),
 		pathToIdx:     make(map[string]int),
 		checksumToIdx: make(map[string][]int),
-		fs:            fs,
 	}
 }
 
-func scanFolder(path string) Catalog {
-	return &catalog{}
-}
-
-func (c *catalog) Add(path string) error {
-	item, err := newCatalogItem(c.fs, path)
-	if err != nil {
-		return errors.Wrap(err, "Cannot add item to catalog")
-	}
-	c.Items = append(c.Items, *item)
+func (c *catalog) Add(item CatalogItem) error {
+	c.Items = append(c.Items, item)
 	idx := len(c.Items) - 1
 	c.pathToIdx[item.Path] = idx
 	c.checksumToIdx[item.Md5Sum] = append(c.checksumToIdx[item.Md5Sum], idx)
@@ -60,10 +49,10 @@ func (c *catalog) DeletePath(path string) {
 	}
 }
 
-func (c *catalog) Item(path string) (catalogItem, error) {
+func (c *catalog) Item(path string) (CatalogItem, error) {
 	idx, ok := c.pathToIdx[path]
 	if !ok {
-		return catalogItem{}, errors.Errorf("No such file: %v", path)
+		return CatalogItem{}, errors.Errorf("No such file: %v", path)
 	}
 	return c.Items[idx], nil
 }
@@ -82,12 +71,12 @@ func (c *catalog) DeletedCount() int {
 	return count
 }
 
-func (c *catalog) ItemsByChecksum(sum checksum) ([]catalogItem, error) {
+func (c *catalog) ItemsByChecksum(sum checksum) ([]CatalogItem, error) {
 	indexes, ok := c.checksumToIdx[sum]
 	if !ok {
-		return []catalogItem{}, errors.Errorf("No such file: %v", sum)
+		return []CatalogItem{}, errors.Errorf("No such file: %v", sum)
 	}
-	ret := make([]catalogItem, 0, len(indexes))
+	ret := make([]CatalogItem, 0, len(indexes))
 	for idx := range indexes {
 		ret = append(ret, c.Items[idx])
 	}

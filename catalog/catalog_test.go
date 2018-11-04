@@ -8,8 +8,7 @@ import (
 )
 
 func TestEmptyCatalog(t *testing.T) {
-	fs := afero.NewOsFs()
-	c := newCatalog(fs)
+	c := NewCatalog()
 	th.Equals(t, c.Count(), 0)
 	th.Equals(t, c.DeletedCount(), 0)
 }
@@ -19,8 +18,8 @@ func TestEmptyCatalogAddRetrieve(t *testing.T) {
 	path := "test_data/test1.txt"
 	expectedItem, err := newCatalogItem(fs, path)
 	th.Ok(t, err)
-	c := newCatalog(fs)
-	err = c.Add(path)
+	c := NewCatalog()
+	err = c.Add(*expectedItem)
 	th.Ok(t, err)
 
 	deleted, err := c.IsDeletedPath(path)
@@ -37,7 +36,7 @@ func TestEmptyCatalogAddRetrieve(t *testing.T) {
 
 	items, err := c.ItemsByChecksum("b3cd1cf6179bca32fd5d76473b129117")
 	th.Ok(t, err)
-	th.Equals(t, []catalogItem{*expectedItem}, items)
+	th.Equals(t, []CatalogItem{*expectedItem}, items)
 
 	path2 := "test_data/test2.txt"
 	_, err = c.Item(path2)
@@ -45,15 +44,16 @@ func TestEmptyCatalogAddRetrieve(t *testing.T) {
 
 	items, err = c.ItemsByChecksum("89b2b34c7b8d232041f0fcc1d213d7bc")
 	th.Nok(t, err, "No such file: 89b2b34c7b8d232041f0fcc1d213d7bc")
-	th.Equals(t, []catalogItem{}, items)
+	th.Equals(t, []CatalogItem{}, items)
 }
 
 func TestAddDelete(t *testing.T) {
 	fs := afero.NewOsFs()
 	path := "test_data/test1.txt"
-	c := newCatalog(fs)
-
-	err := c.Add(path)
+	c := NewCatalog()
+	expectedItem, err := newCatalogItem(fs, path)
+	th.Ok(t, err)
+	err = c.Add(*expectedItem)
 	th.Ok(t, err)
 	th.Equals(t, 1, c.Count())
 	th.Equals(t, 0, c.DeletedCount())
@@ -76,7 +76,7 @@ func TestAddDelete(t *testing.T) {
 
 	items, err := c.ItemsByChecksum(checksum2)
 	th.Nok(t, err, "No such file: "+checksum2)
-	th.Equals(t, []catalogItem{}, items)
+	th.Equals(t, []CatalogItem{}, items)
 
 	_, err = c.IsDeletedPath(path2)
 	th.NokPrefix(t, err, "No such file: "+path2)
