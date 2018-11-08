@@ -13,6 +13,9 @@ import (
 func walkFolder(fs afero.Fs, root string) (<-chan string, <-chan int64) {
 	files := make(chan string, 100000)
 	sizes := make(chan int64, 100000)
+	if exist, err := afero.DirExists(fs, root); err != nil || !exist {
+		log.Fatalf("The folder '%v' doesn't exist", root)
+	}
 	go func() {
 		afero.Walk(fs, root, func(path string, fi os.FileInfo, err error) error {
 			if !fi.IsDir() {
