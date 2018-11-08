@@ -30,7 +30,7 @@ func walkFolder(fs afero.Fs, root string) (<-chan string, <-chan int64) {
 	return files, sizes
 }
 
-func readCatalogItems(fs afero.Fs, root string, paths <-chan string, countBar *mpb.Bar, sizeBar *mpb.Bar) <-chan CatalogItem {
+func readCatalogItems(fs afero.Fs, paths <-chan string, countBar *mpb.Bar, sizeBar *mpb.Bar) <-chan CatalogItem {
 	out := make(chan CatalogItem)
 	go func() {
 		for path := range paths {
@@ -90,7 +90,7 @@ func ScanFolder(c Catalog, fs afero.Fs, root string) {
 	)
 
 	files, sizes := walkFolder(fs, root)
-	items := readCatalogItems(fs, root, files, countBar, sizeBar)
+	items := readCatalogItems(fs, files, countBar, sizeBar)
 	go sumSizes(sizes, countBar, sizeBar)
 	for item := range items {
 		c.Add(item)
