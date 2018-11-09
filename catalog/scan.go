@@ -3,6 +3,7 @@ package catalog
 import (
 	"log"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/spf13/afero"
@@ -30,20 +31,33 @@ func walkFolder(fs afero.Fs, root string) (<-chan string, <-chan int64) {
 	return files, sizes
 }
 
+func catalogFile(fs afero.Fs, path string, out chan CatalogItem, countBar *mpb.Bar, sizeBar *mpb.Bar) {
+	start := time.Now()
+	item, err := newCatalogItem(fs, path)
+	if err != nil {
+		log.Printf("Cannot read file '%v'", path)
+	} else {
+		sizeBar.IncrBy(int(item.Size), time.Since(start))
+		countBar.IncrBy(1, time.Since(start))
+		out <- *item
+	}
+}
+
 func readCatalogItems(fs afero.Fs, paths <-chan string, countBar *mpb.Bar, sizeBar *mpb.Bar) <-chan CatalogItem {
 	out := make(chan CatalogItem)
+	var wg sync.WaitGroup
+	const concurrency = 6
+	wg.Add(concurrency)
 	go func() {
-		for path := range paths {
-			start := time.Now()
-			item, err := newCatalogItem(fs, path)
-			if err != nil {
-				log.Printf("Cannot read file '%v'", path)
-			} else {
-				sizeBar.IncrBy(int(item.Size), time.Since(start))
-				countBar.IncrBy(1, time.Since(start))
-				out <- *item
-			}
+		for i := 0; i < concurrency; i++ {
+			go func() {
+				for path := range paths {
+					catalogFile(fs, path, out, countBar, sizeBar)
+				}
+				wg.Done()
+			}()
 		}
+		wg.Wait()
 		close(out)
 		sizeBar.SetTotal(sizeBar.Current(), true)
 		countBar.SetTotal(countBar.Current(), true)
