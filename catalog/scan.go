@@ -77,12 +77,10 @@ func sumSizes(sizes <-chan int64, countBar *mpb.Bar, sizeBar *mpb.Bar) {
 	}
 }
 
-// ScanFolder recursively scans the root folder and adds all files to the catalog
-func ScanFolder(c Catalog, fs afero.Fs, root string) {
+func createProgressBars() (*mpb.Progress, *mpb.Bar, *mpb.Bar) {
 	p := mpb.New(
 		mpb.WithRefreshRate(100 * time.Millisecond),
 	)
-
 	countName := "Number of Files"
 	countBar := p.AddBar(int64(0),
 		mpb.PrependDecorators(
@@ -102,6 +100,13 @@ func ScanFolder(c Catalog, fs afero.Fs, root string) {
 			decor.AverageSpeed(decor.UnitKiB, " %6.1f"),
 		),
 	)
+	return p, countBar, sizeBar
+}
+
+// ScanFolder recursively scans the root folder and adds all files to the catalog
+func ScanFolder(c Catalog, fs afero.Fs, root string) {
+
+	p, countBar, sizeBar := createProgressBars()
 
 	files, sizes := walkFolder(fs, root)
 	items := readCatalogItems(fs, files, countBar, sizeBar)
