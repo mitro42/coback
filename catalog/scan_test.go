@@ -8,11 +8,17 @@ import (
 	"github.com/spf13/afero"
 )
 
+func createSafeFs(basePath string) afero.Fs {
+	base := afero.NewBasePathFs(afero.NewOsFs(), basePath)
+	roBase := afero.NewReadOnlyFs(base)
+	sfs := afero.NewCopyOnWriteFs(roBase, afero.NewMemMapFs())
+	return sfs
+}
+
 func TestEmptyFoldersCataglogIsEmpty(t *testing.T) {
 	fs := afero.NewMemMapFs()
 	fs.Mkdir("root", 0755)
-	c := NewCatalog()
-	ScanFolder(c, fs, "root")
+	c := ScanFolder(fs, "root")
 	th.Equals(t, c.Count(), 0)
 	th.Equals(t, c.DeletedCount(), 0)
 }
@@ -33,10 +39,8 @@ func checkFilesInCatalog(t *testing.T, c Catalog, path string, size int64, md5su
 }
 
 func TestScanOneLevelFolder(t *testing.T) {
-	rootFolder := "test_data"
-	fs := afero.NewBasePathFs(afero.NewOsFs(), rootFolder)
-	c := NewCatalog()
-	ScanFolder(c, fs, "subfolder")
+	fs := createSafeFs("test_data")
+	c := ScanFolder(fs, "subfolder")
 
 	th.Equals(t, c.Count(), 2)
 	th.Equals(t, c.DeletedCount(), 0)
@@ -46,10 +50,9 @@ func TestScanOneLevelFolder(t *testing.T) {
 }
 
 func TestScanRecursive(t *testing.T) {
-	rootFolder, _ := os.Getwd()
-	fs := afero.NewBasePathFs(afero.NewOsFs(), rootFolder)
-	c := NewCatalog()
-	ScanFolder(c, fs, "test_data")
+	basePath, _ := os.Getwd()
+	fs := createSafeFs(basePath)
+	c := ScanFolder(fs, "test_data")
 
 	th.Equals(t, c.Count(), 4)
 	th.Equals(t, c.DeletedCount(), 0)
