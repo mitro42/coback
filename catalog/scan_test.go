@@ -9,13 +9,6 @@ import (
 	"github.com/spf13/afero"
 )
 
-func createSafeFs(basePath string) afero.Fs {
-	base := afero.NewBasePathFs(afero.NewOsFs(), basePath)
-	roBase := afero.NewReadOnlyFs(base)
-	sfs := afero.NewCopyOnWriteFs(roBase, afero.NewMemMapFs())
-	return sfs
-}
-
 func TestEmptyFoldersCataglogIsEmpty(t *testing.T) {
 	fs := afero.NewMemMapFs()
 	fs.Mkdir("root", 0755)

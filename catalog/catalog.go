@@ -1,7 +1,10 @@
 package catalog
 
 import (
+	"encoding/json"
+
 	"github.com/pkg/errors"
+	"github.com/spf13/afero"
 )
 
 type catalogState = int
@@ -17,6 +20,7 @@ type Catalog interface {
 	DeletedCount() int
 	IsDeletedPath(path string) (bool, error)
 	IsDeletedChecksum(sum checksum) (bool, error)
+	Write(fs afero.Fs, path string) error
 }
 
 type catalog struct {
@@ -114,4 +118,32 @@ func (c *catalog) IsDeletedChecksum(sum checksum) (bool, error) {
 	}
 
 	return c.areAllDeleted(indexes)
+}
+
+func (c *catalog) Write(fs afero.Fs, path string) error {
+	json, _ := json.Marshal(c)
+	err := afero.WriteFile(fs, path, json, 0644)
+	return errors.Wrapf(err, "Cannot save catalog to file: '%v'", path)
+}
+
+func Read(fs afero.Fs, path string) (Catalog, error) {
+	buf, err := afero.ReadFile(fs, path)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Cannot read catalog: '%v'", path)
+	}
+	c := &catalog{
+		Items:         make([]CatalogItem, 0),
+		pathToIdx:     make(map[string]int),
+		checksumToIdx: make(map[string][]int),
+	}
+	err = json.Unmarshal(buf, c)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Cannot parse catalog json: '%v'", path)
+	}
+
+	for idx, item := range c.Items {
+		c.pathToIdx[item.Path] = idx
+		c.checksumToIdx[item.Md5Sum] = append(c.checksumToIdx[item.Md5Sum], idx)
+	}
+	return c, nil
 }

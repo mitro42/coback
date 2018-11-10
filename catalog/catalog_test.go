@@ -1,11 +1,20 @@
 package catalog
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	th "github.com/mitro42/testhelper"
 	"github.com/spf13/afero"
 )
+
+func createSafeFs(basePath string) afero.Fs {
+	base := afero.NewBasePathFs(afero.NewOsFs(), basePath)
+	roBase := afero.NewReadOnlyFs(base)
+	sfs := afero.NewCopyOnWriteFs(roBase, afero.NewMemMapFs())
+	return sfs
+}
 
 func TestEmptyCatalog(t *testing.T) {
 	c := NewCatalog()
@@ -83,4 +92,43 @@ func TestAddDelete(t *testing.T) {
 
 	_, err = c.IsDeletedChecksum(checksum2)
 	th.NokPrefix(t, err, "No such file: "+checksum2)
+}
+
+func TestReadMissing(t *testing.T) {
+	basePath, _ := os.Getwd()
+	path := "test_data/subfolder"
+	fs := createSafeFs(filepath.Join(basePath, path))
+	c, err := Read(fs, "coback.catalog")
+	th.NokPrefix(t, err, "Cannot read catalog: 'coback.catalog'")
+	th.Equals(t, c, nil)
+}
+
+func TestReadParseError(t *testing.T) {
+	basePath, _ := os.Getwd()
+	path := "test_data/subfolder"
+	fs := createSafeFs(filepath.Join(basePath, path))
+	afero.WriteFile(fs, "coback.catalog", []byte("Not a valid json"), 0644)
+	c, err := Read(fs, "coback.catalog")
+	th.NokPrefix(t, err, "Cannot parse catalog json: 'coback.catalog'")
+	th.Equals(t, c, nil)
+}
+
+func TestWriteReadOneLevel(t *testing.T) {
+	basePath, _ := os.Getwd()
+	path := "test_data/subfolder"
+	fs := createSafeFs(filepath.Join(basePath, path))
+	c := Scan(fs)
+	c2, err := Read(fs, "coback.catalog")
+	th.Ok(t, err)
+	th.Equals(t, c, c2)
+}
+
+func TestWriteReadRecursive(t *testing.T) {
+	basePath, _ := os.Getwd()
+	path := "test_data"
+	fs := createSafeFs(filepath.Join(basePath, path))
+	c := Scan(fs)
+	c2, err := Read(fs, "coback.catalog")
+	th.Ok(t, err)
+	th.Equals(t, c, c2)
 }
