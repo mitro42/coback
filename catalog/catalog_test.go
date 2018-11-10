@@ -71,6 +71,19 @@ func TestEmptyCatalogAddRetrieve(t *testing.T) {
 	th.Equals(t, []CatalogItem{}, items)
 }
 
+func TestAddExisting(t *testing.T) {
+	fs := afero.NewOsFs()
+	path := "test_data/test1.txt"
+	c := NewCatalog()
+	item, _ := newCatalogItem(fs, path)
+	err := c.Add(*item)
+	th.Ok(t, err)
+	err = c.Add(*item)
+	th.NokPrefix(t, err, "File is already in the catalog")
+	th.Equals(t, 1, c.Count())
+	th.Equals(t, 0, c.DeletedCount())
+}
+
 func TestAddDelete(t *testing.T) {
 	fs := afero.NewOsFs()
 	path := "test_data/test1.txt"
@@ -107,6 +120,72 @@ func TestAddDelete(t *testing.T) {
 
 	_, err = c.IsDeletedChecksum(checksum2)
 	th.NokPrefix(t, err, "No such file: "+checksum2)
+}
+
+func TestSetMissing(t *testing.T) {
+	fs := afero.NewOsFs()
+	path := "test_data/test1.txt"
+	c := NewCatalog()
+	expectedItem, _ := newCatalogItem(fs, path)
+	err := c.Set(*expectedItem)
+	th.Ok(t, err)
+	th.Equals(t, 1, c.Count())
+	th.Equals(t, 0, c.DeletedCount())
+	c.DeletePath(path)
+	th.Equals(t, 1, c.DeletedCount())
+	th.Equals(t, 0, c.Count())
+
+	deleted, err := c.IsDeletedPath(path)
+	th.Ok(t, err)
+	th.Equals(t, true, deleted)
+
+	deleted, err = c.IsDeletedChecksum("b3cd1cf6179bca32fd5d76473b129117")
+	th.Ok(t, err)
+	th.Equals(t, true, deleted)
+
+	path2 := "test_data/test2.txt"
+	checksum2 := "89b2b34c7b8d232041f0fcc1d213d7bc"
+	_, err = c.Item(path2)
+	th.Nok(t, err, "No such file: "+path2)
+
+	items, err := c.ItemsByChecksum(checksum2)
+	th.Nok(t, err, "No such file: "+checksum2)
+	th.Equals(t, []CatalogItem{}, items)
+
+	_, err = c.IsDeletedPath(path2)
+	th.NokPrefix(t, err, "No such file: "+path2)
+
+	_, err = c.IsDeletedChecksum(checksum2)
+	th.NokPrefix(t, err, "No such file: "+checksum2)
+}
+
+func TestSetExisting(t *testing.T) {
+	fs := afero.NewOsFs()
+	path := "test_data/test1.txt"
+	c := NewCatalog()
+	item, _ := newCatalogItem(fs, path)
+	err := c.Add(*item)
+	th.Ok(t, err)
+
+	other := *item
+	other.Md5Sum = "x"
+	other.Size = 12345
+	other.ModificationTime = "yesterday"
+	th.Equals(t, 1, c.Count())
+	th.Equals(t, 0, c.DeletedCount())
+	actual, _ := c.Item(item.Path)
+	th.Equals(t, *item, actual)
+	actualList, _ := c.ItemsByChecksum(item.Md5Sum)
+	th.Equals(t, []CatalogItem{*item}, actualList)
+	c.Set(other)
+	th.Equals(t, 1, c.Count())
+	th.Equals(t, 0, c.DeletedCount())
+	actual, _ = c.Item(item.Path)
+	th.Equals(t, other, actual)
+	actualList, _ = c.ItemsByChecksum(other.Md5Sum)
+	th.Equals(t, []CatalogItem{other}, actualList)
+	actualList, _ = c.ItemsByChecksum(item.Md5Sum)
+	th.Equals(t, []CatalogItem{}, actualList)
 }
 
 func TestReadMissing(t *testing.T) {

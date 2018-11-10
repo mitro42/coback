@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/afero"
@@ -13,6 +14,7 @@ type checksum = string
 // Catalog stores information about the contents of a folder
 type Catalog interface {
 	Add(item CatalogItem) error
+	Set(item CatalogItem) error
 	DeletePath(path string)
 	Item(path string) (CatalogItem, error)
 	ItemsByChecksum(sum checksum) ([]CatalogItem, error)
@@ -39,6 +41,9 @@ func NewCatalog() Catalog {
 }
 
 func (c *catalog) Add(item CatalogItem) error {
+	if _, ok := c.pathToIdx[item.Path]; ok {
+		return fmt.Errorf("File is already in the catalog: '%v'", item.Path)
+	}
 	c.Items = append(c.Items, item)
 	idx := len(c.Items) - 1
 	c.pathToIdx[item.Path] = idx
@@ -54,6 +59,17 @@ func removeItem(slice []int, v int) []int {
 		}
 	}
 	return slice
+}
+
+func (c *catalog) Set(item CatalogItem) error {
+	if idx, ok := c.pathToIdx[item.Path]; ok {
+		origChecksum := c.Items[idx].Md5Sum
+		c.checksumToIdx[origChecksum] = removeItem(c.checksumToIdx[origChecksum], idx)
+		c.checksumToIdx[item.Md5Sum] = append(c.checksumToIdx[item.Md5Sum], idx)
+		c.Items[idx] = item
+		return nil
+	}
+	return c.Add(item)
 }
 
 func (c *catalog) DeletePath(path string) {
