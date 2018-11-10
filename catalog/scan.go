@@ -3,6 +3,7 @@ package catalog
 import (
 	"log"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -103,17 +104,43 @@ func createProgressBars() (*mpb.Progress, *mpb.Bar, *mpb.Bar) {
 	return p, countBar, sizeBar
 }
 
+func saveCatalog(fs afero.Fs, catalogPath string, items <-chan CatalogItem, result chan<- Catalog) {
+	lastSave := time.Now()
+	c := NewCatalog()
+	for item := range items {
+		c.Add(item)
+		if time.Since(lastSave).Seconds() > 5.0 {
+			lastSave = time.Now()
+			err := c.Write(fs, catalogPath)
+			if err != nil {
+				log.Printf("Failed to update catalog: %v", err)
+			}
+		}
+	}
+	err := c.Write(fs, catalogPath)
+	if err != nil {
+		log.Printf("Failed to update catalog: %v", err)
+	}
+	result <- c
+}
+
 // ScanFolder recursively scans the root folder and adds all files to the catalog
-func ScanFolder(c Catalog, fs afero.Fs, root string) {
+func ScanFolder(fs afero.Fs, root string) Catalog {
 
 	p, countBar, sizeBar := createProgressBars()
 
 	files, sizes := walkFolder(fs, root)
 	items := readCatalogItems(fs, files, countBar, sizeBar)
 	go sumSizes(sizes, countBar, sizeBar)
-	for item := range items {
-		c.Add(item)
-	}
+	result := make(chan Catalog)
+	catalogFilePath := filepath.Join(root, "coback.catalog")
+	go saveCatalog(fs, catalogFilePath, items, result)
 	p.Wait()
-	log.Print("All done")
+	log.Print("Scanning done")
+	return <-result
+}
+
+// Scan recursively scans the whole file system
+func Scan(fs afero.Fs) Catalog {
+	return ScanFolder(fs, ".")
 }
