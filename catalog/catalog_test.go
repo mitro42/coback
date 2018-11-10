@@ -16,6 +16,21 @@ func createSafeFs(basePath string) afero.Fs {
 	return sfs
 }
 
+func TestRemoveItem(t *testing.T) {
+	th.Equals(t, []int{}, removeItem([]int{}, 42))
+	th.Equals(t, []int{}, removeItem([]int{42}, 42))
+	th.Equals(t, []int{4}, removeItem([]int{4}, 42))
+	th.Equals(t, []int{4}, removeItem([]int{0, 4}, 0))
+	th.Equals(t, []int{4}, removeItem([]int{4, 0}, 0))
+	th.Equals(t, []int{2, 3, 4}, removeItem([]int{88, 2, 3, 4}, 88))
+	th.Equals(t, []int{2, 3, 4}, removeItem([]int{2, 88, 3, 4}, 88))
+	th.Equals(t, []int{2, 3, 4}, removeItem([]int{2, 3, 88, 4}, 88))
+	th.Equals(t, []int{2, 3, 4}, removeItem([]int{2, 3, 4, 88}, 88))
+	th.Equals(t, []int{2, 2}, removeItem([]int{2, 2, 2}, 2))
+	th.Equals(t, []int{2, 2}, removeItem([]int{2, 3, 2}, 3))
+	th.Equals(t, []int{3, 2}, removeItem([]int{2, 3, 2}, 2))
+}
+
 func TestEmptyCatalog(t *testing.T) {
 	c := NewCatalog()
 	th.Equals(t, c.Count(), 0)

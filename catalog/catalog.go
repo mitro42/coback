@@ -46,6 +46,16 @@ func (c *catalog) Add(item CatalogItem) error {
 	return nil
 }
 
+// removeItem removes the first occurrence of a value from a slice
+func removeItem(slice []int, v int) []int {
+	for idx, item := range slice {
+		if item == v {
+			return append(slice[:idx], slice[idx+1:]...)
+		}
+	}
+	return slice
+}
+
 func (c *catalog) DeletePath(path string) {
 	idx, ok := c.pathToIdx[path]
 	if ok {
