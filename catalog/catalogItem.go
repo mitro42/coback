@@ -10,11 +10,11 @@ import (
 )
 
 type CatalogItem struct {
-	Path             string    `json:"path"`
-	Size             int64     `json:"size"`
-	ModificationTime time.Time `json:"modification_time"`
-	Md5Sum           string    `json:"md5sum"`
-	Deleted          bool      `json:"deleted"`
+	Path             string `json:"path"`
+	Size             int64  `json:"size"`
+	ModificationTime string `json:"modification_time"`
+	Md5Sum           string `json:"md5sum"`
+	Deleted          bool   `json:"deleted"`
 }
 
 // newCatalogItem creates a catalogItem for the specified file
@@ -34,7 +34,7 @@ func newCatalogItem(fs afero.Fs, path string) (*CatalogItem, error) {
 	return &CatalogItem{
 		Path:             path,
 		Size:             fi.Size(),
-		ModificationTime: fi.ModTime(),
+		ModificationTime: fi.ModTime().Format(time.RFC3339Nano),
 		Md5Sum:           hex.EncodeToString(hash.Sum(nil)),
 		Deleted:          false,
 	}, nil
