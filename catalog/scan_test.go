@@ -12,7 +12,7 @@ import (
 func TestEmptyFoldersCataglogIsEmpty(t *testing.T) {
 	fs := afero.NewMemMapFs()
 	fs.Mkdir("root", 0755)
-	c := ScanFolder(fs, "root")
+	c := ScanFolder(fs, "root", noFilter{})
 	th.Equals(t, c.Count(), 0)
 	th.Equals(t, c.DeletedCount(), 0)
 }
@@ -34,7 +34,7 @@ func checkFilesInCatalog(t *testing.T, c Catalog, path string, size int64, md5su
 
 func TestScanOneLevelFolder(t *testing.T) {
 	fs := createSafeFs("test_data")
-	c := ScanFolder(fs, "subfolder")
+	c := ScanFolder(fs, "subfolder", noFilter{})
 
 	th.Equals(t, c.Count(), 2)
 	th.Equals(t, c.DeletedCount(), 0)
@@ -46,7 +46,7 @@ func TestScanOneLevelFolder(t *testing.T) {
 func TestScanFolderRecursive(t *testing.T) {
 	basePath, _ := os.Getwd()
 	fs := createSafeFs(basePath)
-	c := ScanFolder(fs, "test_data")
+	c := ScanFolder(fs, "test_data", noFilter{})
 
 	th.Equals(t, c.Count(), 4)
 	th.Equals(t, c.DeletedCount(), 0)
@@ -67,4 +67,24 @@ func TestScanRecursive(t *testing.T) {
 	checkFilesInCatalog(t, c, "subfolder/file2.bin", 1500, "f350c40373648527aa95b15786473501")
 	checkFilesInCatalog(t, c, "test1.txt", 1160, "b3cd1cf6179bca32fd5d76473b129117")
 	checkFilesInCatalog(t, c, "test2.txt", 1304, "89b2b34c7b8d232041f0fcc1d213d7bc")
+}
+
+func TestScanWithExtensionFilter(t *testing.T) {
+	basePath, _ := os.Getwd()
+	fs := createSafeFs(basePath)
+	c := ScanFolder(fs, "test_data", ExtensionFilter("txt"))
+
+	th.Equals(t, c.Count(), 2)
+	th.Equals(t, c.DeletedCount(), 0)
+	checkFilesInCatalog(t, c, "test_data/subfolder/file1.bin", 1024, "1cb0bad847fb90f95a767854932ec7c4")
+	checkFilesInCatalog(t, c, "test_data/subfolder/file2.bin", 1500, "f350c40373648527aa95b15786473501")
+}
+
+func TestScanWithExtensionFilter2(t *testing.T) {
+	basePath, _ := os.Getwd()
+	fs := createSafeFs(basePath)
+	c := ScanFolder(fs, "test_data", ExtensionFilter("txt", "bin"))
+
+	th.Equals(t, c.Count(), 0)
+	th.Equals(t, c.DeletedCount(), 0)
 }

@@ -32,6 +32,20 @@ func walkFolder(fs afero.Fs, root string) (<-chan string, <-chan int64) {
 	return files, sizes
 }
 
+func filterFiles(files <-chan string, filter FileFilter) <-chan string {
+	filtered := make(chan string)
+
+	go func() {
+		for file := range files {
+			if filter.Include(file) {
+				filtered <- file
+			}
+		}
+		close(filtered)
+	}()
+	return filtered
+}
+
 func catalogFile(fs afero.Fs, path string, out chan CatalogItem, countBar *mpb.Bar, sizeBar *mpb.Bar) {
 	start := time.Now()
 	item, err := newCatalogItem(fs, path)
@@ -125,12 +139,13 @@ func saveCatalog(fs afero.Fs, catalogPath string, items <-chan CatalogItem, resu
 }
 
 // ScanFolder recursively scans the root folder and adds all files to the catalog
-func ScanFolder(fs afero.Fs, root string) Catalog {
+func ScanFolder(fs afero.Fs, root string, filter FileFilter) Catalog {
 
 	p, countBar, sizeBar := createProgressBars()
 
 	files, sizes := walkFolder(fs, root)
-	items := readCatalogItems(fs, files, countBar, sizeBar)
+	filteredFiles := filterFiles(files, filter)
+	items := readCatalogItems(fs, filteredFiles, countBar, sizeBar)
 	go sumSizes(sizes, countBar, sizeBar)
 	result := make(chan Catalog)
 	catalogFilePath := filepath.Join(root, "coback.catalog")
@@ -142,5 +157,5 @@ func ScanFolder(fs afero.Fs, root string) Catalog {
 
 // Scan recursively scans the whole file system
 func Scan(fs afero.Fs) Catalog {
-	return ScanFolder(fs, ".")
+	return ScanFolder(fs, ".", noFilter{})
 }
