@@ -23,6 +23,7 @@ type Catalog interface {
 	IsDeletedPath(path string) (bool, error)
 	IsDeletedChecksum(sum checksum) (bool, error)
 	Write(fs afero.Fs, path string) error
+	Clone() Catalog
 }
 
 type catalog struct {
@@ -38,6 +39,22 @@ func NewCatalog() Catalog {
 		pathToIdx:     make(map[string]int),
 		checksumToIdx: make(map[string][]int),
 	}
+}
+
+func (c *catalog) Clone() Catalog {
+	clone := &catalog{
+		Items:         make([]CatalogItem, len(c.Items)),
+		pathToIdx:     make(map[string]int),
+		checksumToIdx: make(map[string][]int),
+	}
+	copy(clone.Items, c.Items)
+	for k, v := range c.pathToIdx {
+		clone.pathToIdx[k] = v
+	}
+	for k, v := range c.checksumToIdx {
+		clone.checksumToIdx[k] = v
+	}
+	return clone
 }
 
 func (c *catalog) Add(item CatalogItem) error {

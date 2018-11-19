@@ -226,3 +226,19 @@ func TestWriteReadRecursive(t *testing.T) {
 	th.Ok(t, err)
 	th.Equals(t, c, c2)
 }
+
+func TestClone(t *testing.T) {
+	basePath, _ := os.Getwd()
+	path := "test_data"
+	fs := createSafeFs(filepath.Join(basePath, path))
+	c := Scan(fs).(*catalog)
+	clone := c.Clone().(*catalog)
+	th.Equals(t, c, clone)
+	th.Assert(t, &c != &clone, "clone should be a different object")
+	th.Equals(t, c.Items, clone.Items)
+	th.Assert(t, &c.Items != &clone.Items, "clone.Items should be a different object")
+	th.Equals(t, c.pathToIdx, clone.pathToIdx)
+	th.Assert(t, &c.pathToIdx != &clone.pathToIdx, "clone.pathToIdx should be a different object")
+	th.Equals(t, c.checksumToIdx, clone.checksumToIdx)
+	th.Assert(t, &c.checksumToIdx != &clone.checksumToIdx, "clone.checksumToIdx should be a different object")
+}
