@@ -12,22 +12,29 @@ import (
 	"github.com/vbauerster/mpb/decor"
 )
 
-func walkFolder(fs afero.Fs, root string) (<-chan string, <-chan int64) {
+func walkFolder(fs afero.Fs, root string, done <-chan struct{}, wg *sync.WaitGroup) (<-chan string, <-chan int64) {
 	files := make(chan string, 100000)
 	sizes := make(chan int64, 100000)
 	if exist, err := afero.DirExists(fs, root); err != nil || !exist {
 		log.Fatalf("The folder '%v' doesn't exist", root)
 	}
 	go func() {
+		defer wg.Done()
 		afero.Walk(fs, root, func(path string, fi os.FileInfo, err error) error {
-			if !fi.IsDir() {
-				files <- path
-				sizes <- fi.Size()
+			select {
+			case <-done:
+				return errors.New("Cancelled")
+			default:
+				if !fi.IsDir() {
+					files <- path
+					sizes <- fi.Size()
+				}
+				return nil
 			}
-			return nil
 		})
-		close(files)
-		close(sizes)
+		files <- ""
+		sizes <- -1
+		log.Println("walkFolder go Done")
 	}()
 	return files, sizes
 }
