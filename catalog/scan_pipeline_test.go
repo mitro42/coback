@@ -34,7 +34,7 @@ func TestWalkEmptyFolder(t *testing.T) {
 	th.Equals(t, false, sizeFound)
 }
 
-func readFilesChannel(files <-chan string) []string {
+func readStringChannel(files <-chan string) []string {
 	ret := make([]string, 0)
 	closingElementFound := false
 	for file := range files {
@@ -50,7 +50,7 @@ func readFilesChannel(files <-chan string) []string {
 	return ret
 }
 
-func readSizesChannel(sizes <-chan int64) []int64 {
+func readInt64Channel(sizes <-chan int64) []int64 {
 	ret := make([]int64, 0)
 	closingElementFound := false
 	for size := range sizes {
@@ -101,10 +101,10 @@ func TestWalkFolderOneLevel(t *testing.T) {
 	wg.Wait()
 
 	expectedFiles := []string{"file1.bin", "file2.bin"}
-	actualFiles := readFilesChannel(files)
+	actualFiles := readStringChannel(files)
 
 	expectedSizes := []int64{1024, 1500}
-	actualSizes := readSizesChannel(sizes)
+	actualSizes := readInt64Channel(sizes)
 	th.Equals(t, expectedFiles, actualFiles)
 	th.Equals(t, expectedSizes, actualSizes)
 }
@@ -118,10 +118,10 @@ func TestWalkFolderRecursive(t *testing.T) {
 	wg.Wait()
 
 	expectedFiles := []string{"subfolder/file1.bin", "subfolder/file2.bin", "test1.txt", "test2.txt"}
-	actualFiles := readFilesChannel(files)
+	actualFiles := readStringChannel(files)
 
 	expectedSizes := []int64{1024, 1500, 1160, 1304}
-	actualSizes := readSizesChannel(sizes)
+	actualSizes := readInt64Channel(sizes)
 	th.Equals(t, expectedFiles, actualFiles)
 	th.Equals(t, expectedSizes, actualSizes)
 }
@@ -137,10 +137,10 @@ func TestWalkFolderRecursiveInterrupt(t *testing.T) {
 	wg.Wait()
 
 	expectedFiles := []string{"subfolder/file1.bin", "subfolder/file2.bin", "test1.txt", "test2.txt"}
-	actualFiles := readFilesChannel(files)
+	actualFiles := readStringChannel(files)
 
 	expectedSizes := []int64{1024, 1500, 1160, 1304}
-	actualSizes := readSizesChannel(sizes)
+	actualSizes := readInt64Channel(sizes)
 	th.Equals(t, true, isPrefixStringSlice(expectedFiles, actualFiles))
 	th.Equals(t, true, isPrefixInt64Slice(expectedSizes, actualSizes))
 }
