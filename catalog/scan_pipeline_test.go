@@ -19,15 +19,15 @@ func TestWalkEmptyFolder(t *testing.T) {
 	wg.Wait()
 	fileFound := false
 	select {
-	case <-files:
-		fileFound = true
+	case file := <-files:
+		fileFound = file != ""
 	default:
 	}
 
 	sizeFound := false
 	select {
-	case <-sizes:
-		sizeFound = true
+	case size := <-sizes:
+		sizeFound = size != -1
 	default:
 	}
 	th.Equals(t, false, fileFound)
