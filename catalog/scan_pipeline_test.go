@@ -144,3 +144,70 @@ func TestWalkFolderRecursiveInterrupt(t *testing.T) {
 	th.Equals(t, true, isPrefixStringSlice(expectedFiles, actualFiles))
 	th.Equals(t, true, isPrefixInt64Slice(expectedSizes, actualSizes))
 }
+
+func TestFilterEmptyChannel(t *testing.T) {
+	input := make(chan string)
+	done := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(1)
+	output := filterFiles(input, noFilter{}, done, &wg)
+	close(input)
+	wg.Wait()
+	itemFound := false
+	select {
+	case item := <-output:
+		itemFound = item != ""
+	default:
+	}
+	th.Equals(t, false, itemFound)
+}
+
+func TestFilterNoFilter(t *testing.T) {
+	expected := []string{"orange", "pear", "apple", "melon"}
+	input := make(chan string)
+	done := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(1)
+	output := filterFiles(input, noFilter{}, done, &wg)
+	for _, item := range expected {
+		input <- item
+	}
+	close(input)
+	wg.Wait()
+	actual := readStringChannel(output)
+	th.Equals(t, expected, actual)
+}
+
+func TestFilterExtension(t *testing.T) {
+	inputFiles := []string{"subfolder/file1.bin", "subfolder/file2.bin", "test1.txt", "test2.txt"}
+	expected := []string{"test1.txt", "test2.txt"}
+	input := make(chan string)
+	done := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(1)
+	output := filterFiles(input, ExtensionFilter("bin", "jpg"), done, &wg)
+	for _, item := range inputFiles {
+		input <- item
+	}
+	close(input)
+	wg.Wait()
+	actual := readStringChannel(output)
+	th.Equals(t, expected, actual)
+}
+
+func TestFilterExtensionInterrupt(t *testing.T) {
+	inputFiles := []string{"subfolder/file1.bin", "test1.txt", "test2.txt", "subfolder/file2.bin"}
+	expected := []string{"test1.txt"}
+	input := make(chan string)
+	done := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(1)
+	output := filterFiles(input, ExtensionFilter("bin", "jpg", "xt", "subfolder"), done, &wg)
+	input <- inputFiles[0]
+	input <- inputFiles[1]
+	close(done)
+	close(input)
+	wg.Wait()
+	actual := readStringChannel(output)
+	th.Equals(t, expected, actual)
+}

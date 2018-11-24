@@ -39,16 +39,25 @@ func walkFolder(fs afero.Fs, root string, done <-chan struct{}, wg *sync.WaitGro
 	return files, sizes
 }
 
-func filterFiles(files <-chan string, filter FileFilter) <-chan string {
-	filtered := make(chan string)
+func filterFiles(files <-chan string, filter FileFilter, done <-chan struct{}, wg *sync.WaitGroup) chan string {
+	filtered := make(chan string, 10000)
 
 	go func() {
-		for file := range files {
-			if filter.Include(file) {
-				filtered <- file
+		defer wg.Done()
+		finished := false
+		for !finished {
+			select {
+			case file := <-files:
+				if file == "" {
+					finished = true
+				} else if filter.Include(file) {
+					filtered <- file
+				}
+			case <-done:
+				finished = true
 			}
 		}
-		close(filtered)
+		filtered <- ""
 	}()
 	return filtered
 }
