@@ -211,3 +211,88 @@ func TestFilterExtensionInterrupt(t *testing.T) {
 	actual := readStringChannel(output)
 	th.Equals(t, expected, actual)
 }
+
+type mockProgressBar struct {
+	value   int64
+	total   int64
+	elapsed time.Duration
+	done    bool
+}
+
+func newMockProgressBar() *mockProgressBar {
+	return &mockProgressBar{}
+}
+
+func (m *mockProgressBar) SetTotal(total int64, final bool) {
+	m.total = total
+	m.done = final
+}
+
+func (m *mockProgressBar) IncrBy(n int, wdd ...time.Duration) {
+	m.value += int64(n)
+	m.elapsed += wdd[0]
+	fmt.Printf("%v\n", m.value)
+}
+
+func (m *mockProgressBar) Current() int64 {
+	return m.value
+}
+
+func TestSumSizes(t *testing.T) {
+	inputLength := 1000
+	input := make(chan int64, inputLength+1)
+	done := make(chan struct{})
+	sum := int64(0)
+	for i := 0; i < inputLength; i++ {
+		v := int64(rand.Uint32())
+		sum += v
+		input <- v
+	}
+	input <- -1
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	countBar := newMockProgressBar()
+	sizeBar := newMockProgressBar()
+	sumSizes(input, countBar, sizeBar, done, &wg)
+	wg.Wait()
+	close(input)
+
+	th.Equals(t, int64(inputLength), countBar.total)
+	th.Equals(t, sum, sizeBar.total)
+}
+
+func TestSumSizesInterrupt(t *testing.T) {
+	inputLength := 100
+	input := make(chan int64, inputLength+1)
+	done := make(chan struct{})
+	nums := make([]int64, 0, inputLength)
+
+	go func() {
+		for i := 0; i < inputLength; i++ {
+			time.Sleep(10 * time.Microsecond)
+			v := int64(rand.Uint32())
+			nums = append(nums, v)
+			input <- v
+		}
+		input <- -1
+	}()
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	countBar := newMockProgressBar()
+	sizeBar := newMockProgressBar()
+	go sumSizes(input, countBar, sizeBar, done, &wg)
+	time.Sleep(1000 * time.Microsecond)
+	close(done)
+	wg.Wait()
+
+	sum := int64(0)
+	match := sizeBar.total == 0 && countBar.total == 0
+	for i := 0; i < len(nums); i++ {
+		sum += nums[i]
+		match = match || (sizeBar.total == sum && countBar.total == int64(i+1))
+	}
+
+	th.Assert(t, match, "Count or size mismatch")
+}

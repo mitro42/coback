@@ -12,6 +12,14 @@ import (
 	"github.com/vbauerster/mpb/decor"
 )
 
+// ProgressBar is the minimal progress bar interface used in CoBack.
+// It enables easy mocking of the progress bars in unit tests
+type ProgressBar interface {
+	SetTotal(total int64, final bool)
+	IncrBy(n int, wdd ...time.Duration)
+	Current() int64
+}
+
 func walkFolder(fs afero.Fs, root string, done <-chan struct{}, wg *sync.WaitGroup) (<-chan string, <-chan int64) {
 	files := make(chan string, 100000)
 	sizes := make(chan int64, 100000)
@@ -62,7 +70,7 @@ func filterFiles(files <-chan string, filter FileFilter, done <-chan struct{}, w
 	return filtered
 }
 
-func catalogFile(fs afero.Fs, path string, out chan CatalogItem, countBar *mpb.Bar, sizeBar *mpb.Bar) {
+func catalogFile(fs afero.Fs, path string, out chan CatalogItem, countBar ProgressBar, sizeBar ProgressBar) {
 	start := time.Now()
 	item, err := newCatalogItem(fs, path)
 	if err != nil {
@@ -98,17 +106,31 @@ func readCatalogItems(fs afero.Fs, paths <-chan string, countBar *mpb.Bar, sizeB
 }
 
 func sumSizes(sizes <-chan int64, countBar *mpb.Bar, sizeBar *mpb.Bar) {
+// sumSizes calculates the sum of the numbers read from the sizes channel.
+// It can be interrupted with the done channel
+func sumSizes(sizes <-chan int64, countBar ProgressBar, sizeBar ProgressBar, done <-chan struct{}, wg *sync.WaitGroup) {
+	defer wg.Done()
 	total := int64(0)
 	count := int64(0)
-	for s := range sizes {
-		total += s
-		count++
-		sizeBar.SetTotal(total, false)
-		countBar.SetTotal(count, false)
+	finished := false
+	for !finished {
+		select {
+		case s := <-sizes:
+			if s == -1 {
+				finished = true
+				break
+			}
+			total += s
+			count++
+			sizeBar.SetTotal(total, false)
+			countBar.SetTotal(count, false)
+		case <-done:
+			finished = true
+		}
 	}
 }
 
-func createProgressBars() (*mpb.Progress, *mpb.Bar, *mpb.Bar) {
+func createProgressBars() (*mpb.Progress, ProgressBar, ProgressBar) {
 	p := mpb.New(
 		mpb.WithRefreshRate(100 * time.Millisecond),
 	)
