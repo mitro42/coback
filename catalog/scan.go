@@ -82,6 +82,27 @@ func catalogFile(fs afero.Fs, path string, out chan CatalogItem, countBar Progre
 	}
 }
 
+// checkCatalogFile checks a given file (metadata and content) against a catalog
+// Returns true if the file at path exist and the content matches the catalog.
+func checkCatalogFile(fs afero.Fs, path string, c Catalog, countBar ProgressBar, sizeBar ProgressBar) bool {
+	start := time.Now()
+	item, err := newCatalogItem(fs, path)
+	if err != nil {
+		log.Printf("Cannot read file '%v'", path)
+		return false
+	}
+
+	sizeBar.IncrBy(int(item.Size), time.Since(start))
+	countBar.IncrBy(1, time.Since(start))
+	itemInCatalog, err := c.Item(path)
+
+	if err != nil {
+		log.Printf("Cannot find file in catalog '%v'", path)
+		return false
+	}
+	return *item == itemInCatalog
+}
+
 func readCatalogItems(fs afero.Fs, paths <-chan string, countBar *mpb.Bar, sizeBar *mpb.Bar) <-chan CatalogItem {
 	out := make(chan CatalogItem)
 	var wg sync.WaitGroup
