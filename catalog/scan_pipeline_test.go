@@ -1,6 +1,8 @@
 package catalog
 
 import (
+	"fmt"
+	"math/rand"
 	"sync"
 	"testing"
 	"time"
@@ -296,3 +298,29 @@ func TestSumSizesInterrupt(t *testing.T) {
 
 	th.Assert(t, match, "Count or size mismatch")
 }
+
+func TestExpectNoItemsSuccess(t *testing.T) {
+	inputFiles := make(chan interface{})
+	error := make(chan struct{})
+	done := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go expectNoItems(inputFiles, error, done, &wg)
+	close(done)
+	th.Equals(t, 0, len(error))
+	wg.Wait()
+}
+
+func TestExpectNoItemsFailure(t *testing.T) {
+	inputFiles := make(chan interface{})
+	error := make(chan struct{}, 1)
+	done := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go expectNoItems(inputFiles, error, done, &wg)
+	inputFiles <- "x.txt"
+	close(done)
+	th.Equals(t, 1, len(error))
+	wg.Wait()
+}
+

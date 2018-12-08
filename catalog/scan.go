@@ -197,3 +197,20 @@ func ScanFolder(fs afero.Fs, root string, filter FileFilter) Catalog {
 func Scan(fs afero.Fs) Catalog {
 	return ScanFolder(fs, ".", noFilter{})
 }
+
+// expectNoItems reads from the items channels, and sends a message to itemReceived if found anything.
+// Can be iterrupted by sending a message to the done channel.
+// In any case termination is signaled thourgh wg.
+func expectNoItems(items <-chan interface{}, itemReceived chan<- struct{}, done <-chan struct{}, wg *sync.WaitGroup) {
+	defer wg.Done()
+L:
+	for {
+		select {
+		case <-items:
+			itemReceived <- struct{}{}
+			break
+		case <-done:
+			break L
+		}
+	}
+}
