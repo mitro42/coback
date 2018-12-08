@@ -126,6 +126,55 @@ func readCatalogItems(fs afero.Fs, paths <-chan string, countBar *mpb.Bar, sizeB
 	return out
 }
 
+// checkExistingItems checks the incoming files against a catalog
+// Processes the files in the paths channel, and calls checkCatalogFile on each of them.
+// At the first error sends a message on failed channel but carry on may processing the input until interrupted.
+// At each steps updated the progress bars with the number and size of processed files.
+// Can be interrupted at any time by sending a message to the done channel.
+// The paths channel must be buffered.
+func checkExistingItems(fs afero.Fs,
+	paths chan string,
+	c Catalog,
+	countBar ProgressBar,
+	sizeBar ProgressBar,
+	failed chan<- struct{},
+	done chan struct{},
+	globalWg *sync.WaitGroup) {
+
+	var wg sync.WaitGroup
+	const concurrency = 6
+	wg.Add(concurrency)
+	go func() {
+		defer globalWg.Done()
+		for i := 0; i < concurrency; i++ {
+			go func() {
+				defer wg.Done()
+				finished := false
+				for !finished {
+					select {
+					case path := <-paths:
+						if path == "" {
+							finished = true // make this gorutine stop
+							paths <- ""     // make one of its siblings stop
+							break
+						}
+						if !checkCatalogFile(fs, path, c, countBar, sizeBar) {
+							failed <- struct{}{}
+							return
+						}
+					case <-done:
+						return
+					}
+				}
+			}()
+		}
+		wg.Wait()
+		sizeBar.SetTotal(sizeBar.Current(), true)
+		countBar.SetTotal(countBar.Current(), true)
+	}()
+
+}
+
 func sumSizes(sizes <-chan int64, countBar *mpb.Bar, sizeBar *mpb.Bar) {
 // sumSizes calculates the sum of the numbers read from the sizes channel.
 // It can be interrupted with the done channel
@@ -181,7 +230,13 @@ func saveCatalog(fs afero.Fs, catalogPath string, items <-chan CatalogItem, resu
 	lastSave := time.Now()
 	c := NewCatalog()
 	for item := range items {
-		c.Add(item)
+		if item.Path == "" {
+			continue
+		}
+		err := c.Add(item)
+		if err != nil {
+			log.Printf("Cannot save catalog: %v", err)
+		}
 		if time.Since(lastSave).Seconds() > 5.0 {
 			lastSave = time.Now()
 			err := c.Write(fs, catalogPath)

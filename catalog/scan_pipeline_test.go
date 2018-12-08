@@ -353,3 +353,76 @@ func TestCheckCatalogFileMismatch(t *testing.T) {
 	th.Equals(t, 1, sizeBar.incrByCount)
 	th.Equals(t, int64(1175), sizeBar.value)
 }
+
+func TestCheckExistingItemsSuccess(t *testing.T) {
+	basePath, _ := os.Getwd()
+	countBar := newMockProgressBar()
+	sizeBar := newMockProgressBar()
+	path := filepath.Join(basePath, "test_data")
+	fs := createSafeFs(path)
+	c := ScanFolder(fs, "", noFilter{})
+	inputFiles := make(chan string, 1)
+	failure := make(chan struct{}, 10)
+	done := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	go checkExistingItems(fs, inputFiles, c, countBar, sizeBar, failure, done, &wg)
+	inputFiles <- "test1.txt"
+	inputFiles <- "subfolder/file1.bin"
+	inputFiles <- "test2.txt"
+	inputFiles <- ""
+	close(done)
+	wg.Wait()
+	th.Equals(t, 0, len(failure))
+	th.Equals(t, 3, countBar.incrByCount)
+	th.Equals(t, int64(3), countBar.value)
+	th.Equals(t, 3, sizeBar.incrByCount)
+	th.Equals(t, int64(3488), sizeBar.value)
+}
+
+func TestCheckExistingItemsNewFileOnDisk(t *testing.T) {
+	basePath, _ := os.Getwd()
+	countBar := newMockProgressBar()
+	sizeBar := newMockProgressBar()
+	path := filepath.Join(basePath, "test_data")
+	fs := createSafeFs(path)
+	c := ScanFolder(fs, "", ExtensionFilter("txt"))
+	inputFiles := make(chan string, 1)
+	failure := make(chan struct{}, 10)
+	done := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	go checkExistingItems(fs, inputFiles, c, countBar, sizeBar, failure, done, &wg)
+	inputFiles <- "subfolder/file1.bin"
+	inputFiles <- "subfolder/file2.bin"
+	inputFiles <- "test1.txt"
+	inputFiles <- "test2.txt"
+	close(done)
+	wg.Wait()
+	th.Assert(t, len(failure) > 0, "At least one failure must be found")
+}
+
+func TestCheckExistingItemsMismatch(t *testing.T) {
+	basePath, _ := os.Getwd()
+	countBar := newMockProgressBar()
+	sizeBar := newMockProgressBar()
+	path := filepath.Join(basePath, "test_data")
+	fs := createSafeFs(path)
+	c := ScanFolder(fs, "", ExtensionFilter("txt"))
+	inputFiles := make(chan string, 1)
+	failure := make(chan struct{}, 10)
+	done := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	go checkExistingItems(fs, inputFiles, c, countBar, sizeBar, failure, done, &wg)
+	changeFileContent(fs, "test2.txt")
+	inputFiles <- "subfolder/file1.bin"
+	inputFiles <- "test2.txt"
+	inputFiles <- "subfolder/file2.bin"
+	close(done)
+	wg.Wait()
+	th.Equals(t, 1, len(failure))
+}
