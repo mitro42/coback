@@ -274,6 +274,36 @@ func Scan(fs afero.Fs) Catalog {
 	return ScanFolder(fs, ".", noFilter{})
 }
 
+// filterByCatalog separate the incoming files (typically contents of the file system)
+// to two chanels based on whether they are present in the catalog or not.
+// If an file read from the files channel is in the catalog (only the path is checked, no metadata, no contents)
+// it is put to known otherwise to unknown.
+// The processing can be interrupted by a message sent to the done channel.
+func filterByCatalog(files <-chan string, c Catalog, done <-chan struct{}, wg *sync.WaitGroup) (known chan string, unknown chan string) {
+	known = make(chan string, 1)
+	unknown = make(chan string, 1)
+	go func() {
+		defer wg.Done()
+	L:
+		for {
+			select {
+			case file := <-files:
+				if file == "" {
+					break L
+				}
+				if _, err := c.Item(file); err == nil {
+					known <- file
+				} else {
+					unknown <- file
+				}
+			case <-done:
+				break L
+			}
+		}
+	}()
+	return
+}
+
 // expectNoItems reads from the items channels, and sends a message to itemReceived if found anything.
 // Can be iterrupted by sending a message to the done channel.
 // In any case termination is signaled thourgh wg.

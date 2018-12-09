@@ -426,3 +426,106 @@ func TestCheckExistingItemsMismatch(t *testing.T) {
 	wg.Wait()
 	th.Equals(t, 1, len(failure))
 }
+
+func TestCheckFilterByCatalogNoFiles(t *testing.T) {
+	basePath, _ := os.Getwd()
+	path := filepath.Join(basePath, "test_data")
+	fs := createSafeFs(path)
+	c := ScanFolder(fs, "", noFilter{})
+	input := make(chan string, 1)
+	done := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(1)
+	known, unknown := filterByCatalog(input, c, done, &wg)
+	input <- ""
+	wg.Wait()
+	th.Equals(t, 0, len(known))
+	th.Equals(t, 0, len(unknown))
+}
+
+func TestCheckFilterByCatalogEmptyCatalog(t *testing.T) {
+	inputFiles := []string{"subfolder/file1.bin", "subfolder/file2.bin", "test1.txt", "test2.txt"}
+	c := NewCatalog()
+	input := make(chan string, 10)
+	done := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(1)
+	known, unknown := filterByCatalog(input, c, done, &wg)
+	for _, item := range inputFiles {
+		input <- item
+	}
+	input <- ""
+	go func() {
+		for _, item := range inputFiles {
+			f := <-unknown
+			th.Equals(t, item, f)
+		}
+	}()
+
+	wg.Wait()
+	th.Equals(t, 0, len(known))
+	th.Equals(t, 0, len(unknown))
+}
+
+func TestCheckFilterByCatalogMixed(t *testing.T) {
+	basePath, _ := os.Getwd()
+	path := "test_data"
+	fs := createSafeFs(filepath.Join(basePath, path))
+	filter := ExtensionFilter("txt")
+	c := ScanFolder(fs, "", filter)
+
+	inputFiles := []string{"subfolder/file1.bin", "subfolder/file2.bin", "test1.txt", "test2.txt"}
+	input := make(chan string, 10)
+	done := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(1)
+	known, unknown := filterByCatalog(input, c, done, &wg)
+	for _, item := range inputFiles {
+		input <- item
+	}
+	input <- ""
+	go func() {
+		for _, item := range inputFiles {
+			var f string
+			if filter.Include(item) {
+				f = <-known
+			} else {
+				f = <-unknown
+			}
+			th.Equals(t, item, f)
+		}
+	}()
+
+	wg.Wait()
+	th.Equals(t, 0, len(known))
+	th.Equals(t, 0, len(unknown))
+}
+
+func TestCheckFilterByCatalogInterrupted(t *testing.T) {
+	basePath, _ := os.Getwd()
+	path := "test_data"
+	fs := createSafeFs(filepath.Join(basePath, path))
+	filter := ExtensionFilter("txt")
+	c := ScanFolder(fs, "", filter)
+
+	inputFiles := []string{"subfolder/file1.bin", "test1.txt", "subfolder/file2.bin", "test2.txt"}
+	input := make(chan string, 10)
+	done := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(1)
+	known, unknown := filterByCatalog(input, c, done, &wg)
+	for idx, item := range inputFiles {
+		if idx == 2 {
+			time.Sleep(time.Millisecond * 50)
+			close(done)
+		}
+		input <- item
+	}
+	input <- ""
+	go func() {
+		th.Equals(t, inputFiles[0], <-known)
+		th.Equals(t, inputFiles[1], <-unknown)
+	}()
+
+	wg.Wait()
+}
