@@ -1,6 +1,7 @@
 package catalog
 
 import (
+	"fmt"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -528,4 +529,117 @@ func TestCheckFilterByCatalogInterrupted(t *testing.T) {
 	}()
 
 	wg.Wait()
+}
+
+func TestReadCatalogItems(t *testing.T) {
+	basePath, _ := os.Getwd()
+	path := "test_data"
+	fs := createSafeFs(filepath.Join(basePath, path))
+	countBar := newMockProgressBar()
+	sizeBar := newMockProgressBar()
+
+	inputFiles := []string{"subfolder/file1.bin", "test1.txt", "subfolder/file2.bin", "test2.txt"}
+	input := make(chan string, 10)
+	done := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(1)
+	catalogItems := readCatalogItems(fs, input, countBar, sizeBar, done, &wg)
+	for _, item := range inputFiles {
+		input <- item
+	}
+	input <- ""
+
+	outputPaths := make([]string, 0, 0)
+	for range inputFiles {
+		item := <-catalogItems
+		expectedItem, err := newCatalogItem(fs, item.Path)
+		th.Ok(t, err)
+		th.Equals(t, *expectedItem, item)
+		outputPaths = append(outputPaths, item.Path)
+	}
+
+	wg.Wait()
+	for _, outputPath := range outputPaths {
+		found := false
+		for _, inputPath := range inputFiles {
+			if inputPath == outputPath {
+				found = true
+				break
+			}
+		}
+		th.Assert(t, found, fmt.Sprintf("path '%v' returned buy readCatalogItems was not in the input", outputPath))
+	}
+	th.Equals(t, 4, countBar.incrByCount)
+	th.Equals(t, int64(4), countBar.value)
+	th.Equals(t, 4, sizeBar.incrByCount)
+	th.Equals(t, int64(4988), sizeBar.value)
+}
+
+func TestReadCatalogItemsEmpty(t *testing.T) {
+	basePath, _ := os.Getwd()
+	path := "test_data"
+	fs := createSafeFs(filepath.Join(basePath, path))
+	countBar := newMockProgressBar()
+	sizeBar := newMockProgressBar()
+
+	input := make(chan string, 10)
+	done := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(1)
+	catalogItems := readCatalogItems(fs, input, countBar, sizeBar, done, &wg)
+	input <- ""
+
+	wg.Wait()
+	th.Equals(t, CatalogItem{}, <-catalogItems)
+	th.Equals(t, 0, len(catalogItems))
+	th.Equals(t, 0, countBar.incrByCount)
+	th.Equals(t, 0, sizeBar.incrByCount)
+}
+
+func TestReadCatalogItemsInterrupt(t *testing.T) {
+	basePath, _ := os.Getwd()
+	path := "test_data"
+	fs := createSafeFs(filepath.Join(basePath, path))
+	countBar := newMockProgressBar()
+	sizeBar := newMockProgressBar()
+
+	inputFiles := []string{"subfolder/file1.bin", "test1.txt", "subfolder/file2.bin", "test2.txt"}
+	input := make(chan string, 10)
+	done := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(1)
+	catalogItems := readCatalogItems(fs, input, countBar, sizeBar, done, &wg)
+	for idx, item := range inputFiles {
+		if idx == 2 {
+			close(done)
+			time.Sleep(time.Millisecond * 50)
+		}
+		input <- item
+	}
+
+	wg.Wait()
+	outputPaths := make([]string, 0, 0)
+	for item := range catalogItems {
+		if (item == CatalogItem{}) {
+			break
+		}
+		expectedItem, err := newCatalogItem(fs, item.Path)
+		th.Ok(t, err)
+		th.Equals(t, *expectedItem, item)
+		outputPaths = append(outputPaths, item.Path)
+	}
+
+	for _, outputPath := range outputPaths {
+		found := false
+		for _, inputPath := range inputFiles {
+			if inputPath == outputPath {
+				found = true
+				break
+			}
+		}
+		th.Assert(t, found, fmt.Sprintf("path '%v' returned buy readCatalogItems was not in the input", outputPath))
+	}
+	th.Equals(t, 2, countBar.incrByCount)
+	th.Equals(t, 2, sizeBar.incrByCount)
+	th.Equals(t, int64(2184), sizeBar.value)
 }

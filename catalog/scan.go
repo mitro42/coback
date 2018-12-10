@@ -103,22 +103,44 @@ func checkCatalogFile(fs afero.Fs, path string, c Catalog, countBar ProgressBar,
 	return *item == itemInCatalog
 }
 
-func readCatalogItems(fs afero.Fs, paths <-chan string, countBar *mpb.Bar, sizeBar *mpb.Bar) <-chan CatalogItem {
-	out := make(chan CatalogItem)
+// readCatalogItems creates the CatalogItems for the incoming paths
+// Can be interrupted with a message sent to the done channel,
+// The processing can be interrupted by a message sent to the done channel.
+// The paths channel must be buffered.
+func readCatalogItems(fs afero.Fs,
+	paths chan string,
+	countBar ProgressBar,
+	sizeBar ProgressBar,
+	done chan struct{},
+	globalWg *sync.WaitGroup) <-chan CatalogItem {
+
+	out := make(chan CatalogItem, 10)
 	var wg sync.WaitGroup
 	const concurrency = 6
 	wg.Add(concurrency)
 	go func() {
+		defer globalWg.Done()
 		for i := 0; i < concurrency; i++ {
 			go func() {
-				for path := range paths {
-					catalogFile(fs, path, out, countBar, sizeBar)
+				finished := false
+				for !finished {
+					select {
+					case path := <-paths:
+						if path == "" {
+							finished = true // make this gorutine stop
+							paths <- ""     // make one of its siblings stop
+							break
+						}
+						catalogFile(fs, path, out, countBar, sizeBar)
+					case <-done:
+						finished = true
+					}
 				}
 				wg.Done()
 			}()
 		}
 		wg.Wait()
-		close(out)
+		out <- CatalogItem{}
 		sizeBar.SetTotal(sizeBar.Current(), true)
 		countBar.SetTotal(countBar.Current(), true)
 	}()
