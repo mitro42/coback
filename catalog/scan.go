@@ -252,8 +252,8 @@ func saveCatalog(fs afero.Fs, catalogPath string, items <-chan CatalogItem, resu
 	lastSave := time.Now()
 	c := NewCatalog()
 	for item := range items {
-		if item.Path == "" {
-			continue
+		if (item == CatalogItem{}) {
+			break
 		}
 		err := c.Add(item)
 		if err != nil {
