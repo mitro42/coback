@@ -8,6 +8,9 @@ import (
 	"github.com/spf13/afero"
 )
 
+// CatalogFileName is the file where coback stores the catalog in json format
+const CatalogFileName = "coback.catalog"
+
 type catalogState = int
 type checksum = string
 

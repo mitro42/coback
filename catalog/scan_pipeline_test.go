@@ -654,7 +654,7 @@ func TestSaveCatalogEmpty(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 
-	go saveCatalog(fs, "coback.catalog", items, result, done, &wg)
+	go saveCatalog(fs, CatalogFileName, items, result, done, &wg)
 	items <- CatalogItem{}
 	wg.Wait()
 	c := <-result
@@ -671,7 +671,7 @@ func TestSaveCatalog(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 
-	go saveCatalog(fs, "coback.catalog", items, result, done, &wg)
+	go saveCatalog(fs, CatalogFileName, items, result, done, &wg)
 	item1, err := newCatalogItem(fs, "test1.txt")
 	th.Ok(t, err)
 	item2, err := newCatalogItem(fs, "subfolder/file1.bin")
@@ -697,7 +697,7 @@ func TestSaveCatalogInterrupt(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 
-	go saveCatalog(fs, "coback.catalog", items, result, done, &wg)
+	go saveCatalog(fs, CatalogFileName, items, result, done, &wg)
 	item1, err := newCatalogItem(fs, "test1.txt")
 	th.Ok(t, err)
 	item2, err := newCatalogItem(fs, "subfolder/file1.bin")
