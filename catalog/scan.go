@@ -248,25 +248,34 @@ func createProgressBars() (*mpb.Progress, ProgressBar, ProgressBar) {
 	return p, countBar, sizeBar
 }
 
-func saveCatalog(fs afero.Fs, catalogPath string, items <-chan CatalogItem, result chan<- Catalog) {
+func saveCatalog(fs afero.Fs, catalogPath string, items <-chan CatalogItem,
+	result chan<- Catalog, done <-chan struct{}, wg *sync.WaitGroup) {
+	defer wg.Done()
 	lastSave := time.Now()
 	c := NewCatalog()
-	for item := range items {
-		if (item == CatalogItem{}) {
-			break
-		}
-		err := c.Add(item)
-		if err != nil {
-			log.Printf("Cannot save catalog: %v", err)
-		}
-		if time.Since(lastSave).Seconds() > 5.0 {
-			lastSave = time.Now()
-			err := c.Write(fs, catalogPath)
-			if err != nil {
-				log.Printf("Failed to update catalog: %v", err)
+L:
+	for {
+		select {
+		case item := <-items:
+			if (item == CatalogItem{}) {
+				break L
 			}
+			err := c.Add(item)
+			if err != nil {
+				log.Printf("Cannot save catalog: %v", err)
+			}
+			if time.Since(lastSave).Seconds() > 5.0 {
+				lastSave = time.Now()
+				err := c.Write(fs, catalogPath)
+				if err != nil {
+					log.Printf("Failed to update catalog: %v", err)
+				}
+			}
+		case <-done:
+			break L
 		}
 	}
+
 	err := c.Write(fs, catalogPath)
 	if err != nil {
 		log.Printf("Failed to update catalog: %v", err)

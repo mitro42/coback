@@ -643,3 +643,76 @@ func TestReadCatalogItemsInterrupt(t *testing.T) {
 	th.Equals(t, 2, sizeBar.incrByCount)
 	th.Equals(t, int64(2184), sizeBar.value)
 }
+
+func TestSaveCatalogEmpty(t *testing.T) {
+	basePath, _ := os.Getwd()
+	path := "test_data"
+	fs := createSafeFs(filepath.Join(basePath, path))
+	items := make(chan CatalogItem)
+	result := make(chan Catalog, 1)
+	done := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	go saveCatalog(fs, "coback.catalog", items, result, done, &wg)
+	items <- CatalogItem{}
+	wg.Wait()
+	c := <-result
+	th.Equals(t, NewCatalog(), c)
+}
+
+func TestSaveCatalog(t *testing.T) {
+	basePath, _ := os.Getwd()
+	path := "test_data"
+	fs := createSafeFs(filepath.Join(basePath, path))
+	items := make(chan CatalogItem)
+	result := make(chan Catalog, 1)
+	done := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	go saveCatalog(fs, "coback.catalog", items, result, done, &wg)
+	item1, err := newCatalogItem(fs, "test1.txt")
+	th.Ok(t, err)
+	item2, err := newCatalogItem(fs, "subfolder/file1.bin")
+	th.Ok(t, err)
+	items <- *item1
+	items <- *item2
+	items <- CatalogItem{}
+	wg.Wait()
+	c := <-result
+	expectedCatalog := NewCatalog()
+	expectedCatalog.Add(*item1)
+	expectedCatalog.Add(*item2)
+	th.Equals(t, expectedCatalog, c)
+}
+
+func TestSaveCatalogInterrupt(t *testing.T) {
+	basePath, _ := os.Getwd()
+	path := "test_data"
+	fs := createSafeFs(filepath.Join(basePath, path))
+	items := make(chan CatalogItem, 10)
+	result := make(chan Catalog, 1)
+	done := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	go saveCatalog(fs, "coback.catalog", items, result, done, &wg)
+	item1, err := newCatalogItem(fs, "test1.txt")
+	th.Ok(t, err)
+	item2, err := newCatalogItem(fs, "subfolder/file1.bin")
+	th.Ok(t, err)
+
+	items <- *item1
+	time.Sleep(40 * time.Microsecond)
+	done <- struct{}{}
+	time.Sleep(40 * time.Microsecond)
+	items <- *item2
+	time.Sleep(40 * time.Microsecond)
+	items <- CatalogItem{}
+	wg.Wait()
+	c := <-result
+	expectedCatalog := NewCatalog()
+	expectedCatalog.Add(*item1)
+	th.Equals(t, expectedCatalog, c)
+}
