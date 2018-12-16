@@ -33,7 +33,7 @@ func walkFolder(fs afero.Fs, root string, done <-chan struct{}, wg *sync.WaitGro
 			case <-done:
 				return errors.New("Cancelled")
 			default:
-				if !fi.IsDir() {
+				if !fi.IsDir() && fi.Name() != CatalogFileName {
 					files <- path
 					sizes <- fi.Size()
 				}

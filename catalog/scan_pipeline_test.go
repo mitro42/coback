@@ -130,6 +130,24 @@ func TestWalkFolderRecursive(t *testing.T) {
 	th.Equals(t, expectedSizes, actualSizes)
 }
 
+func TestWalkFolderIgnoreCatalog(t *testing.T) {
+	fs := createSafeFs("test_data")
+	done := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(1)
+	fs.Create(CatalogFileName)
+	files, sizes := walkFolder(fs, "", done, &wg)
+	wg.Wait()
+
+	expectedFiles := []string{"subfolder/file1.bin", "subfolder/file2.bin", "test1.txt", "test2.txt"}
+	actualFiles := readStringChannel(files)
+
+	expectedSizes := []int64{1024, 1500, 1160, 1304}
+	actualSizes := readInt64Channel(sizes)
+	th.Equals(t, expectedFiles, actualFiles)
+	th.Equals(t, expectedSizes, actualSizes)
+}
+
 func TestWalkFolderRecursiveInterrupt(t *testing.T) {
 	fs := createSafeFs("test_data")
 	done := make(chan struct{})
