@@ -197,7 +197,6 @@ func checkExistingItems(fs afero.Fs,
 
 }
 
-func sumSizes(sizes <-chan int64, countBar *mpb.Bar, sizeBar *mpb.Bar) {
 // sumSizes calculates the sum of the numbers read from the sizes channel.
 // It can be interrupted with the done channel
 func sumSizes(sizes <-chan int64, countBar ProgressBar, sizeBar ProgressBar, done <-chan struct{}, wg *sync.WaitGroup) {
