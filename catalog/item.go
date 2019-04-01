@@ -9,7 +9,8 @@ import (
 	"github.com/spf13/afero"
 )
 
-type CatalogItem struct {
+// Item represents the metadata for one file stored in the catalog
+type Item struct {
 	Path             string `json:"path"`
 	Size             int64  `json:"size"`
 	ModificationTime string `json:"modification_time"`
@@ -17,8 +18,8 @@ type CatalogItem struct {
 	Deleted          bool   `json:"deleted"`
 }
 
-// newCatalogItem creates a catalogItem for the specified file
-func newCatalogItem(fs afero.Fs, path string) (*CatalogItem, error) {
+// newItem creates an Item for the specified file
+func newItem(fs afero.Fs, path string) (*Item, error) {
 	buf, err := afero.ReadFile(fs, path)
 	if err != nil {
 		return nil, errors.Wrap(err, "Cannot open file")
@@ -31,7 +32,7 @@ func newCatalogItem(fs afero.Fs, path string) (*CatalogItem, error) {
 
 	hash := md5.New()
 	hash.Write(buf)
-	return &CatalogItem{
+	return &Item{
 		Path:             path,
 		Size:             fi.Size(),
 		ModificationTime: fi.ModTime().Format(time.RFC3339Nano),

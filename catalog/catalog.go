@@ -16,11 +16,11 @@ type checksum = string
 
 // Catalog stores information about the contents of a folder
 type Catalog interface {
-	Add(item CatalogItem) error
-	Set(item CatalogItem) error
+	Add(item Item) error
+	Set(item Item) error
 	DeletePath(path string)
-	Item(path string) (CatalogItem, error)
-	ItemsByChecksum(sum checksum) ([]CatalogItem, error)
+	Item(path string) (Item, error)
+	ItemsByChecksum(sum checksum) ([]Item, error)
 	Count() int
 	DeletedCount() int
 	IsDeletedPath(path string) (bool, error)
@@ -30,15 +30,16 @@ type Catalog interface {
 }
 
 type catalog struct {
-	State         catalogState  `json:"state"`
-	Items         []CatalogItem `json:"content"`
+	State         catalogState `json:"state"`
+	Items         []Item       `json:"content"`
 	pathToIdx     map[string]int
 	checksumToIdx map[string][]int
 }
 
+// NewCatalog creates a new empty Catalog
 func NewCatalog() Catalog {
 	return &catalog{
-		Items:         make([]CatalogItem, 0, 100),
+		Items:         make([]Item, 0, 100),
 		pathToIdx:     make(map[string]int),
 		checksumToIdx: make(map[string][]int),
 	}
@@ -46,7 +47,7 @@ func NewCatalog() Catalog {
 
 func (c *catalog) Clone() Catalog {
 	clone := &catalog{
-		Items:         make([]CatalogItem, len(c.Items)),
+		Items:         make([]Item, len(c.Items)),
 		pathToIdx:     make(map[string]int),
 		checksumToIdx: make(map[string][]int),
 	}
@@ -60,7 +61,7 @@ func (c *catalog) Clone() Catalog {
 	return clone
 }
 
-func (c *catalog) Add(item CatalogItem) error {
+func (c *catalog) Add(item Item) error {
 	if _, ok := c.pathToIdx[item.Path]; ok {
 		return fmt.Errorf("File is already in the catalog: '%v'", item.Path)
 	}
@@ -81,7 +82,7 @@ func removeItem(slice []int, v int) []int {
 	return slice
 }
 
-func (c *catalog) Set(item CatalogItem) error {
+func (c *catalog) Set(item Item) error {
 	if idx, ok := c.pathToIdx[item.Path]; ok {
 		origChecksum := c.Items[idx].Md5Sum
 		c.checksumToIdx[origChecksum] = removeItem(c.checksumToIdx[origChecksum], idx)
@@ -99,10 +100,10 @@ func (c *catalog) DeletePath(path string) {
 	}
 }
 
-func (c *catalog) Item(path string) (CatalogItem, error) {
+func (c *catalog) Item(path string) (Item, error) {
 	idx, ok := c.pathToIdx[path]
 	if !ok {
-		return CatalogItem{}, errors.Errorf("No such file: %v", path)
+		return Item{}, errors.Errorf("No such file: %v", path)
 	}
 	return c.Items[idx], nil
 }
@@ -121,12 +122,12 @@ func (c *catalog) DeletedCount() int {
 	return count
 }
 
-func (c *catalog) ItemsByChecksum(sum checksum) ([]CatalogItem, error) {
+func (c *catalog) ItemsByChecksum(sum checksum) ([]Item, error) {
 	indexes, ok := c.checksumToIdx[sum]
 	if !ok {
-		return []CatalogItem{}, errors.Errorf("No such file: %v", sum)
+		return []Item{}, errors.Errorf("No such file: %v", sum)
 	}
-	ret := make([]CatalogItem, 0, len(indexes))
+	ret := make([]Item, 0, len(indexes))
 	for idx := range indexes {
 		ret = append(ret, c.Items[idx])
 	}
@@ -172,13 +173,14 @@ func (c *catalog) Write(fs afero.Fs, path string) error {
 	return errors.Wrapf(err, "Cannot save catalog to file: '%v'", path)
 }
 
+// Read reads catalog stored in a json file
 func Read(fs afero.Fs, path string) (Catalog, error) {
 	buf, err := afero.ReadFile(fs, path)
 	if err != nil {
 		return nil, errors.Wrapf(err, "Cannot read catalog: '%v'", path)
 	}
 	c := &catalog{
-		Items:         make([]CatalogItem, 0),
+		Items:         make([]Item, 0),
 		pathToIdx:     make(map[string]int),
 		checksumToIdx: make(map[string][]int),
 	}

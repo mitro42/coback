@@ -262,13 +262,13 @@ func TestSumSizesInterrupt(t *testing.T) {
 	inputLength := 100
 	input := make(chan int64, inputLength+1)
 	done := make(chan struct{})
-	nums := make([]int64, 0, inputLength)
+	sizes := make([]int64, 0, inputLength)
 
 	go func() {
 		for i := 0; i < inputLength; i++ {
 			time.Sleep(10 * time.Microsecond)
 			v := int64(rand.Uint32())
-			nums = append(nums, v)
+			sizes = append(sizes, v)
 			input <- v
 		}
 		input <- -1
@@ -285,8 +285,8 @@ func TestSumSizesInterrupt(t *testing.T) {
 
 	sum := int64(0)
 	match := sizeBar.total == 0 && countBar.total == 0
-	for i := 0; i < len(nums); i++ {
-		sum += nums[i]
+	for i := 0; i < len(sizes); i++ {
+		sum += sizes[i]
 		match = match || (sizeBar.total == sum && countBar.total == int64(i+1))
 	}
 
@@ -343,7 +343,7 @@ func TestCheckCatalogFileNotInCatalog(t *testing.T) {
 	th.Equals(t, int64(1160), sizeBar.value)
 }
 
-func TestCheckCatalogFileSucces(t *testing.T) {
+func TestCheckCatalogFileSuccess(t *testing.T) {
 	basePath, _ := os.Getwd()
 	countBar := newMockProgressBar()
 	sizeBar := newMockProgressBar()
@@ -576,7 +576,7 @@ func TestReadCatalogItems(t *testing.T) {
 	outputPaths := make([]string, 0, 0)
 	for range inputFiles {
 		item := <-catalogItems
-		expectedItem, err := newCatalogItem(fs, item.Path)
+		expectedItem, err := newItem(fs, item.Path)
 		th.Ok(t, err)
 		th.Equals(t, *expectedItem, item)
 		outputPaths = append(outputPaths, item.Path)
@@ -614,7 +614,7 @@ func TestReadCatalogItemsEmpty(t *testing.T) {
 	input <- ""
 
 	wg.Wait()
-	th.Equals(t, CatalogItem{}, <-catalogItems)
+	th.Equals(t, Item{}, <-catalogItems)
 	th.Equals(t, 0, len(catalogItems))
 	th.Equals(t, 0, countBar.incrByCount)
 	th.Equals(t, 0, sizeBar.incrByCount)
@@ -644,10 +644,10 @@ func TestReadCatalogItemsInterrupt(t *testing.T) {
 	wg.Wait()
 	outputPaths := make([]string, 0, 0)
 	for item := range catalogItems {
-		if (item == CatalogItem{}) {
+		if (item == Item{}) {
 			break
 		}
-		expectedItem, err := newCatalogItem(fs, item.Path)
+		expectedItem, err := newItem(fs, item.Path)
 		th.Ok(t, err)
 		th.Equals(t, *expectedItem, item)
 		outputPaths = append(outputPaths, item.Path)
@@ -672,14 +672,14 @@ func TestSaveCatalogEmpty(t *testing.T) {
 	basePath, _ := os.Getwd()
 	path := "test_data"
 	fs := createSafeFs(filepath.Join(basePath, path))
-	items := make(chan CatalogItem)
+	items := make(chan Item)
 	result := make(chan Catalog, 1)
 	done := make(chan struct{})
 	var wg sync.WaitGroup
 	wg.Add(1)
 
 	go saveCatalog(fs, CatalogFileName, items, result, done, &wg)
-	items <- CatalogItem{}
+	items <- Item{}
 	wg.Wait()
 	c := <-result
 	th.Equals(t, NewCatalog(), c)
@@ -689,20 +689,20 @@ func TestSaveCatalog(t *testing.T) {
 	basePath, _ := os.Getwd()
 	path := "test_data"
 	fs := createSafeFs(filepath.Join(basePath, path))
-	items := make(chan CatalogItem)
+	items := make(chan Item)
 	result := make(chan Catalog, 1)
 	done := make(chan struct{})
 	var wg sync.WaitGroup
 	wg.Add(1)
 
 	go saveCatalog(fs, CatalogFileName, items, result, done, &wg)
-	item1, err := newCatalogItem(fs, "test1.txt")
+	item1, err := newItem(fs, "test1.txt")
 	th.Ok(t, err)
-	item2, err := newCatalogItem(fs, "subfolder/file1.bin")
+	item2, err := newItem(fs, "subfolder/file1.bin")
 	th.Ok(t, err)
 	items <- *item1
 	items <- *item2
-	items <- CatalogItem{}
+	items <- Item{}
 	wg.Wait()
 	c := <-result
 	expectedCatalog := NewCatalog()
@@ -715,16 +715,16 @@ func TestSaveCatalogInterrupt(t *testing.T) {
 	basePath, _ := os.Getwd()
 	path := "test_data"
 	fs := createSafeFs(filepath.Join(basePath, path))
-	items := make(chan CatalogItem, 10)
+	items := make(chan Item, 10)
 	result := make(chan Catalog, 1)
 	done := make(chan struct{})
 	var wg sync.WaitGroup
 	wg.Add(1)
 
 	go saveCatalog(fs, CatalogFileName, items, result, done, &wg)
-	item1, err := newCatalogItem(fs, "test1.txt")
+	item1, err := newItem(fs, "test1.txt")
 	th.Ok(t, err)
-	item2, err := newCatalogItem(fs, "subfolder/file1.bin")
+	item2, err := newItem(fs, "subfolder/file1.bin")
 	th.Ok(t, err)
 
 	items <- *item1
@@ -733,7 +733,7 @@ func TestSaveCatalogInterrupt(t *testing.T) {
 	time.Sleep(40 * time.Microsecond)
 	items <- *item2
 	time.Sleep(40 * time.Microsecond)
-	items <- CatalogItem{}
+	items <- Item{}
 	wg.Wait()
 	c := <-result
 	expectedCatalog := NewCatalog()

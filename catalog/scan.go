@@ -1,6 +1,7 @@
 package catalog
 
 import (
+	"errors"
 	"log"
 	"os"
 	"path/filepath"
@@ -20,10 +21,13 @@ type ProgressBar interface {
 	Current() int64
 }
 
+// CheckResult is the result of a check of a catalog against a folder on the disk
 type CheckResult int
 
 const (
+	// Same is returned when the catalog's data is consistent with the checked folder
 	Same CheckResult = 0
+	// Diff is returned in any other case
 	Diff CheckResult = 1
 	// ContentDiff            CheckResult = 1
 	// DeletedFileFoundAgain  CheckResult = 2
@@ -90,9 +94,9 @@ func filterFiles(files <-chan string, filter FileFilter, done <-chan struct{}, w
 	return filtered
 }
 
-func catalogFile(fs afero.Fs, path string, out chan CatalogItem, countBar ProgressBar, sizeBar ProgressBar) {
+func catalogFile(fs afero.Fs, path string, out chan Item, countBar ProgressBar, sizeBar ProgressBar) {
 	start := time.Now()
-	item, err := newCatalogItem(fs, path)
+	item, err := newItem(fs, path)
 	if err != nil {
 		log.Printf("Cannot read file '%v'", path)
 	} else {
@@ -106,7 +110,7 @@ func catalogFile(fs afero.Fs, path string, out chan CatalogItem, countBar Progre
 // Returns true if the file at path exist and the content matches the catalog.
 func checkCatalogFile(fs afero.Fs, path string, c Catalog, countBar ProgressBar, sizeBar ProgressBar) bool {
 	start := time.Now()
-	item, err := newCatalogItem(fs, path)
+	item, err := newItem(fs, path)
 	if err != nil {
 		log.Printf("Cannot read file '%v'", path)
 		return false
@@ -132,9 +136,9 @@ func readCatalogItems(fs afero.Fs,
 	countBar ProgressBar,
 	sizeBar ProgressBar,
 	done chan struct{},
-	globalWg *sync.WaitGroup) <-chan CatalogItem {
+	globalWg *sync.WaitGroup) <-chan Item {
 
-	out := make(chan CatalogItem, 10)
+	out := make(chan Item, 10)
 	var wg sync.WaitGroup
 	const concurrency = 6
 	wg.Add(concurrency)
@@ -147,7 +151,7 @@ func readCatalogItems(fs afero.Fs,
 					select {
 					case path := <-paths:
 						if path == "" {
-							finished = true // make this gorutine stop
+							finished = true // make this goroutine stop
 							paths <- ""     // make one of its siblings stop
 							break
 						}
@@ -160,7 +164,7 @@ func readCatalogItems(fs afero.Fs,
 			}()
 		}
 		wg.Wait()
-		out <- CatalogItem{}
+		out <- Item{}
 		sizeBar.SetTotal(sizeBar.Current(), true)
 		countBar.SetTotal(countBar.Current(), true)
 	}()
@@ -196,7 +200,7 @@ func checkExistingItems(fs afero.Fs,
 					select {
 					case path := <-paths:
 						if path == "" {
-							finished = true // make this gorutine stop
+							finished = true // make this goroutine stop
 							paths <- ""     // make one of its siblings stop
 							break
 						}
@@ -271,7 +275,7 @@ func createProgressBars() (*mpb.Progress, ProgressBar, ProgressBar) {
 	return p, countBar, sizeBar
 }
 
-func saveCatalog(fs afero.Fs, catalogPath string, items <-chan CatalogItem,
+func saveCatalog(fs afero.Fs, catalogPath string, items <-chan Item,
 	result chan<- Catalog, done <-chan struct{}, wg *sync.WaitGroup) {
 	defer wg.Done()
 	lastSave := time.Now()
@@ -280,7 +284,7 @@ L:
 	for {
 		select {
 		case item := <-items:
-			if (item == CatalogItem{}) {
+			if (item == Item{}) {
 				break L
 			}
 			err := c.Add(item)
@@ -331,7 +335,7 @@ func Scan(fs afero.Fs) Catalog {
 }
 
 // filterByCatalog separate the incoming files (typically contents of the file system)
-// to two chanels based on whether they are present in the catalog or not.
+// to two channels based on whether they are present in the catalog or not.
 // If an file read from the files channel is in the catalog (only the path is checked, no metadata, no contents)
 // it is put to known otherwise to unknown.
 // The processing can be interrupted by a message sent to the done channel.
@@ -363,8 +367,8 @@ func filterByCatalog(files <-chan string, c Catalog, done <-chan struct{}, wg *s
 }
 
 // expectNoItems reads from the items channels, and sends a message to itemReceived if found anything.
-// Can be iterrupted by sending a message to the done channel.
-// In any case termination is signaled thourgh wg.
+// Can be interrupted by sending a message to the done channel.
+// In any case termination is signaled through wg.
 func expectNoItems(items <-chan string, itemReceived chan<- struct{}, done <-chan struct{}, wg *sync.WaitGroup) {
 	defer wg.Done()
 L:

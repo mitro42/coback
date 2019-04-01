@@ -8,14 +8,14 @@ import (
 )
 
 func TestMissingFile(t *testing.T) {
-	item, err := newCatalogItem(afero.NewOsFs(), "no_such_file")
+	item, err := newItem(afero.NewOsFs(), "no_such_file")
 	th.NokPrefix(t, err, "Cannot open file")
 	th.Assert(t, item == nil, "Item expected to be nil")
 }
 
 func TestCatalogItem(t *testing.T) {
 	path := "test_data/test1.txt"
-	item, err := newCatalogItem(afero.NewOsFs(), path)
+	item, err := newItem(afero.NewOsFs(), path)
 	th.Ok(t, err)
 	th.Equals(t, path, item.Path)
 	th.Equals(t, int64(1160), item.Size)
@@ -25,7 +25,7 @@ func TestCatalogItem(t *testing.T) {
 
 func TestCatalogItem2(t *testing.T) {
 	path := "test_data/test2.txt"
-	item, err := newCatalogItem(afero.NewOsFs(), path)
+	item, err := newItem(afero.NewOsFs(), path)
 	th.Ok(t, err)
 	th.Equals(t, path, item.Path)
 	th.Equals(t, int64(1304), item.Size)
