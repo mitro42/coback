@@ -250,7 +250,7 @@ func TestSumSizes(t *testing.T) {
 	wg.Add(1)
 	countBar := newMockProgressBar()
 	sizeBar := newMockProgressBar()
-	sumSizes(input, countBar, sizeBar, done, &wg)
+	sumSizes(input, countBar, sizeBar, nil, done, &wg)
 	wg.Wait()
 	close(input)
 
@@ -278,7 +278,7 @@ func TestSumSizesInterrupt(t *testing.T) {
 	wg.Add(1)
 	countBar := newMockProgressBar()
 	sizeBar := newMockProgressBar()
-	go sumSizes(input, countBar, sizeBar, done, &wg)
+	go sumSizes(input, countBar, sizeBar, nil, done, &wg)
 	time.Sleep(1000 * time.Microsecond)
 	close(done)
 	wg.Wait()
@@ -294,7 +294,7 @@ func TestSumSizesInterrupt(t *testing.T) {
 }
 
 func TestExpectNoItemsSuccess(t *testing.T) {
-	inputFiles := make(chan interface{})
+	inputFiles := make(chan string)
 	error := make(chan struct{})
 	done := make(chan struct{})
 	var wg sync.WaitGroup
@@ -306,7 +306,7 @@ func TestExpectNoItemsSuccess(t *testing.T) {
 }
 
 func TestExpectNoItemsFailure(t *testing.T) {
-	inputFiles := make(chan interface{})
+	inputFiles := make(chan string)
 	error := make(chan struct{}, 1)
 	done := make(chan struct{})
 	var wg sync.WaitGroup
@@ -458,6 +458,8 @@ func TestCheckFilterByCatalogNoFiles(t *testing.T) {
 	known, unknown := filterByCatalog(input, c, done, &wg)
 	input <- ""
 	wg.Wait()
+	th.Equals(t, "", <-known)
+	th.Equals(t, "", <-unknown)
 	th.Equals(t, 0, len(known))
 	th.Equals(t, 0, len(unknown))
 }
@@ -482,6 +484,8 @@ func TestCheckFilterByCatalogEmptyCatalog(t *testing.T) {
 	}()
 
 	wg.Wait()
+	th.Equals(t, "", <-known)
+	th.Equals(t, "", <-unknown)
 	th.Equals(t, 0, len(known))
 	th.Equals(t, 0, len(unknown))
 }
@@ -516,6 +520,8 @@ func TestCheckFilterByCatalogMixed(t *testing.T) {
 	}()
 
 	wg.Wait()
+	th.Equals(t, "", <-known)
+	th.Equals(t, "", <-unknown)
 	th.Equals(t, 0, len(known))
 	th.Equals(t, 0, len(unknown))
 }

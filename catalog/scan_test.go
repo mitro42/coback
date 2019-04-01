@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/afero"
 )
 
-func TestEmptyFoldersCataglogIsEmpty(t *testing.T) {
+func TestEmptyFoldersCatalogIsEmpty(t *testing.T) {
 	fs := afero.NewMemMapFs()
 	fs.Mkdir("root", 0755)
 	c := ScanFolder(fs, "root", noFilter{})
@@ -88,3 +88,89 @@ func TestScanWithExtensionFilter2(t *testing.T) {
 	th.Equals(t, c.Count(), 0)
 	th.Equals(t, c.DeletedCount(), 0)
 }
+
+func TestCheckOk(t *testing.T) {
+	basePath, _ := os.Getwd()
+	path := "test_data"
+	fs := createSafeFs(filepath.Join(basePath, path))
+	c := Scan(fs)
+	th.Equals(t, Same, Check(fs, c, noFilter{}))
+}
+
+func TestCheckFileMissingFromCatalog(t *testing.T) {
+	basePath, _ := os.Getwd()
+	path := "test_data"
+	fs := createSafeFs(filepath.Join(basePath, path))
+	filter := ExtensionFilter("bin")
+	c := ScanFolder(fs, "", filter)
+	th.Equals(t, Diff, Check(fs, c, noFilter{}))
+}
+
+// This cannot be detected yet
+//
+// func TestCheckFileMissingFromDisk(t *testing.T) {
+// 	basePath, _ := os.Getwd()
+// 	path := "test_data"
+// 	fs := createSafeFs(filepath.Join(basePath, path))
+// 	filter := ExtensionFilter("bin")
+// 	c := ScanFolder(fs, "", filter)
+// 	item, _ := newCatalogItem(fs, "subfolder/file1.bin")
+// 	c.Add(*item)
+// 	th.Equals(t, false, Check(fs, c, filter))
+// }
+
+func TestCheckItemChecksumMismatch(t *testing.T) {
+	basePath, _ := os.Getwd()
+	path := "test_data"
+	fs := createSafeFs(filepath.Join(basePath, path))
+	filter := ExtensionFilter("bin")
+	c := ScanFolder(fs, "", filter)
+	item, err := c.Item("test1.txt")
+	th.Ok(t, err)
+	item.Md5Sum = "abcdef"
+	err = c.Set(item)
+	th.Ok(t, err)
+	th.Equals(t, Diff, Check(fs, c, filter))
+}
+
+func TestCheckItemSizeMismatch(t *testing.T) {
+	basePath, _ := os.Getwd()
+	path := "test_data"
+	fs := createSafeFs(filepath.Join(basePath, path))
+	filter := ExtensionFilter("bin")
+	c := ScanFolder(fs, "", filter)
+	item, err := c.Item("test1.txt")
+	th.Ok(t, err)
+	item.Size = 6854
+	err = c.Set(item)
+	th.Ok(t, err)
+	th.Equals(t, Diff, Check(fs, c, filter))
+}
+
+func TestCheckItemModificationTimeMismatch(t *testing.T) {
+	basePath, _ := os.Getwd()
+	path := "test_data"
+	fs := createSafeFs(filepath.Join(basePath, path))
+	filter := ExtensionFilter("bin")
+	c := ScanFolder(fs, "", filter)
+	item, err := c.Item("test1.txt")
+	th.Ok(t, err)
+	item.ModificationTime = "1924"
+	err = c.Set(item)
+	th.Ok(t, err)
+	th.Equals(t, Diff, Check(fs, c, filter))
+}
+
+// Deleted flag handling will probably change in the future
+//
+// func TestCheckItemDeletedFlagMismatch(t *testing.T) {
+// 	basePath, _ := os.Getwd()
+// 	path := "test_data"
+// 	fs := createSafeFs(filepath.Join(basePath, path))
+// 	filter := ExtensionFilter("bin")
+// 	c := ScanFolder(fs, "", filter)
+// 	item, _ := c.Item("subfolder/test1.txt")
+// 	item.Deleted = true
+// 	c.Add(item)
+// 	th.Equals(t, false, Check(fs, c, filter))
+// }

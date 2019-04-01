@@ -20,6 +20,26 @@ type ProgressBar interface {
 	Current() int64
 }
 
+type CheckResult int
+
+const (
+	Same CheckResult = 0
+	Diff CheckResult = 1
+	// ContentDiff            CheckResult = 1
+	// DeletedFileFoundAgain  CheckResult = 2
+	// FileMissingFromCatalog CheckResult = 3
+)
+
+func (cr CheckResult) String() string {
+	names := [...]string{"Same",
+		"Diff"}
+
+	if cr < Same || cr > Diff {
+		return "UNKNOWN RESULT"
+	}
+	return names[cr]
+}
+
 func walkFolder(fs afero.Fs, root string, done <-chan struct{}, wg *sync.WaitGroup) (<-chan string, <-chan int64) {
 	files := make(chan string, 100000)
 	sizes := make(chan int64, 100000)
@@ -199,7 +219,7 @@ func checkExistingItems(fs afero.Fs,
 
 // sumSizes calculates the sum of the numbers read from the sizes channel.
 // It can be interrupted with the done channel
-func sumSizes(sizes <-chan int64, countBar ProgressBar, sizeBar ProgressBar, done <-chan struct{}, wg *sync.WaitGroup) {
+func sumSizes(sizes <-chan int64, countBar ProgressBar, sizeBar ProgressBar, fileCount chan<- int64, done <-chan struct{}, wg *sync.WaitGroup) {
 	defer wg.Done()
 	total := int64(0)
 	count := int64(0)
@@ -216,9 +236,13 @@ func sumSizes(sizes <-chan int64, countBar ProgressBar, sizeBar ProgressBar, don
 			sizeBar.SetTotal(total, false)
 			countBar.SetTotal(count, false)
 		case <-done:
+			count = -1
 			finished = true
 		}
 	}
+	if fileCount != nil {
+		fileCount <- count
+}
 }
 
 func createProgressBars() (*mpb.Progress, ProgressBar, ProgressBar) {
@@ -284,19 +308,21 @@ L:
 
 // ScanFolder recursively scans the root folder and adds all files to the catalog
 func ScanFolder(fs afero.Fs, root string, filter FileFilter) Catalog {
-
+	var wg sync.WaitGroup
+	done := make(chan struct{})
 	p, countBar, sizeBar := createProgressBars()
-
-	files, sizes := walkFolder(fs, root)
-	filteredFiles := filterFiles(files, filter)
-	items := readCatalogItems(fs, filteredFiles, countBar, sizeBar)
-	go sumSizes(sizes, countBar, sizeBar)
+	wg.Add(5)
+	files, sizes := walkFolder(fs, root, done, &wg)
+	filteredFiles := filterFiles(files, filter, done, &wg)
+	items := readCatalogItems(fs, filteredFiles, countBar, sizeBar, done, &wg)
+	go sumSizes(sizes, countBar, sizeBar, nil, done, &wg)
 	result := make(chan Catalog)
-	catalogFilePath := filepath.Join(root, "coback.catalog")
-	go saveCatalog(fs, catalogFilePath, items, result)
+	catalogFilePath := filepath.Join(root, CatalogFileName)
+	go saveCatalog(fs, catalogFilePath, items, result, done, &wg)
+	ret := <-result
+	close(done)
 	p.Wait()
-	log.Print("Scanning done")
-	return <-result
+	return ret
 }
 
 // Scan recursively scans the whole file system
@@ -319,6 +345,8 @@ func filterByCatalog(files <-chan string, c Catalog, done <-chan struct{}, wg *s
 			select {
 			case file := <-files:
 				if file == "" {
+					known <- ""
+					unknown <- ""
 					break L
 				}
 				if _, err := c.Item(file); err == nil {
@@ -337,16 +365,64 @@ func filterByCatalog(files <-chan string, c Catalog, done <-chan struct{}, wg *s
 // expectNoItems reads from the items channels, and sends a message to itemReceived if found anything.
 // Can be iterrupted by sending a message to the done channel.
 // In any case termination is signaled thourgh wg.
-func expectNoItems(items <-chan interface{}, itemReceived chan<- struct{}, done <-chan struct{}, wg *sync.WaitGroup) {
+func expectNoItems(items <-chan string, itemReceived chan<- struct{}, done <-chan struct{}, wg *sync.WaitGroup) {
 	defer wg.Done()
 L:
 	for {
 		select {
-		case <-items:
+		case item := <-items:
+			if item == "" {
+				break L
+			}
 			itemReceived <- struct{}{}
 			break
 		case <-done:
 			break L
 		}
 	}
+}
+
+// Check scans a folder and compare its contents to the contents of the catalog.
+// Compares all data and content. It performs a full scan but stops at the first mismatch.
+// Returns true if the catalog is consistent with the file system,
+// and false if there is a mismatch
+func Check(fs afero.Fs, c Catalog, filter FileFilter) CheckResult {
+	checkFailed := make(chan struct{})
+	done := make(chan struct{})
+	allDone := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(6)
+
+	p, countBar, sizeBar := createProgressBars()
+
+	files, sizes := walkFolder(fs, ".", done, &wg)
+	filteredFiles := filterFiles(files, filter, done, &wg)
+	knownFiles, unknownFiles := filterByCatalog(filteredFiles, c, done, &wg)
+	go expectNoItems(unknownFiles, checkFailed, done, &wg)
+	checkExistingItems(fs, knownFiles, c, countBar, sizeBar, checkFailed, done, &wg)
+	// processedFileCount := make(chan int64, 1)
+	go sumSizes(sizes, countBar, sizeBar, nil, done, &wg)
+
+	go func() {
+		wg.Wait()
+		allDone <- struct{}{}
+	}()
+
+	ret := Same
+	go func() {
+		select {
+		case <-checkFailed:
+			log.Println("checkFailed arrived")
+			ret = Diff
+			close(done)
+			wg.Wait()
+			<-allDone
+		case <-allDone:
+			close(done)
+		}
+	}()
+
+	p.Wait()
+	log.Printf("Check done, returning %+v", ret)
+	return ret
 }
