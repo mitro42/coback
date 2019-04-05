@@ -11,8 +11,10 @@ import (
 // CatalogFileName is the file where coback stores the catalog in json format
 const CatalogFileName = "coback.catalog"
 
-type catalogState = int
-type checksum = string
+type catalogState int
+
+// Checksum is a string type that helps avoiding confusion between files identified by path and by checksum
+type Checksum string
 
 // Catalog stores information about the contents of a folder
 type Catalog interface {
@@ -20,11 +22,11 @@ type Catalog interface {
 	Set(item Item) error
 	DeletePath(path string)
 	Item(path string) (Item, error)
-	ItemsByChecksum(sum checksum) ([]Item, error)
+	ItemsByChecksum(sum Checksum) ([]Item, error)
 	Count() int
 	DeletedCount() int
 	IsDeletedPath(path string) (bool, error)
-	IsDeletedChecksum(sum checksum) (bool, error)
+	IsDeletedChecksum(sum Checksum) (bool, error)
 	Write(fs afero.Fs, path string) error
 	Clone() Catalog
 }
@@ -33,7 +35,7 @@ type catalog struct {
 	State         catalogState `json:"state"`
 	Items         []Item       `json:"content"`
 	pathToIdx     map[string]int
-	checksumToIdx map[string][]int
+	checksumToIdx map[Checksum][]int
 }
 
 // NewCatalog creates a new empty Catalog
@@ -41,7 +43,7 @@ func NewCatalog() Catalog {
 	return &catalog{
 		Items:         make([]Item, 0, 100),
 		pathToIdx:     make(map[string]int),
-		checksumToIdx: make(map[string][]int),
+		checksumToIdx: make(map[Checksum][]int),
 	}
 }
 
@@ -49,7 +51,7 @@ func (c *catalog) Clone() Catalog {
 	clone := &catalog{
 		Items:         make([]Item, len(c.Items)),
 		pathToIdx:     make(map[string]int),
-		checksumToIdx: make(map[string][]int),
+		checksumToIdx: make(map[Checksum][]int),
 	}
 	copy(clone.Items, c.Items)
 	for k, v := range c.pathToIdx {
@@ -122,7 +124,7 @@ func (c *catalog) DeletedCount() int {
 	return count
 }
 
-func (c *catalog) ItemsByChecksum(sum checksum) ([]Item, error) {
+func (c *catalog) ItemsByChecksum(sum Checksum) ([]Item, error) {
 	indexes, ok := c.checksumToIdx[sum]
 	if !ok {
 		return []Item{}, errors.Errorf("No such file: %v", sum)
@@ -158,7 +160,7 @@ func (c *catalog) IsDeletedPath(path string) (bool, error) {
 	return c.Items[idx].Deleted, nil
 }
 
-func (c *catalog) IsDeletedChecksum(sum checksum) (bool, error) {
+func (c *catalog) IsDeletedChecksum(sum Checksum) (bool, error) {
 	indexes, ok := c.checksumToIdx[sum]
 	if !ok {
 		return false, errors.Errorf("No such file: %v", sum)
@@ -182,7 +184,7 @@ func Read(fs afero.Fs, path string) (Catalog, error) {
 	c := &catalog{
 		Items:         make([]Item, 0),
 		pathToIdx:     make(map[string]int),
-		checksumToIdx: make(map[string][]int),
+		checksumToIdx: make(map[Checksum][]int),
 	}
 	err = json.Unmarshal(buf, c)
 	if err != nil {

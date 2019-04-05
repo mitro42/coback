@@ -17,7 +17,7 @@ func TestEmptyFoldersCatalogIsEmpty(t *testing.T) {
 	th.Equals(t, c.DeletedCount(), 0)
 }
 
-func checkFilesInCatalog(t *testing.T, c Catalog, path string, size int64, md5sum string) {
+func checkFilesInCatalog(t *testing.T, c Catalog, path string, size int64, md5sum Checksum) {
 	deleted, err := c.IsDeletedPath(path)
 	th.Ok(t, err)
 	th.Equals(t, false, deleted)

@@ -11,11 +11,11 @@ import (
 
 // Item represents the metadata for one file stored in the catalog
 type Item struct {
-	Path             string `json:"path"`
-	Size             int64  `json:"size"`
-	ModificationTime string `json:"modification_time"`
-	Md5Sum           string `json:"md5sum"`
-	Deleted          bool   `json:"deleted"`
+	Path             string   `json:"path"`
+	Size             int64    `json:"size"`
+	ModificationTime string   `json:"modification_time"`
+	Md5Sum           Checksum `json:"md5sum"`
+	Deleted          bool     `json:"deleted"`
 }
 
 // newItem creates an Item for the specified file
@@ -36,7 +36,7 @@ func newItem(fs afero.Fs, path string) (*Item, error) {
 		Path:             path,
 		Size:             fi.Size(),
 		ModificationTime: fi.ModTime().Format(time.RFC3339Nano),
-		Md5Sum:           hex.EncodeToString(hash.Sum(nil)),
+		Md5Sum:           Checksum(hex.EncodeToString(hash.Sum(nil))),
 		Deleted:          false,
 	}, nil
 }

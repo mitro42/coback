@@ -1,6 +1,7 @@
 package catalog
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -107,19 +108,19 @@ func TestAddDelete(t *testing.T) {
 	th.Equals(t, true, deleted)
 
 	path2 := "test_data/test2.txt"
-	checksum2 := "89b2b34c7b8d232041f0fcc1d213d7bc"
+	checksum2 := Checksum("89b2b34c7b8d232041f0fcc1d213d7bc")
 	_, err = c.Item(path2)
 	th.Nok(t, err, "No such file: "+path2)
 
 	items, err := c.ItemsByChecksum(checksum2)
-	th.Nok(t, err, "No such file: "+checksum2)
+	th.Nok(t, err, fmt.Sprintf("No such file: %v", checksum2))
 	th.Equals(t, []Item{}, items)
 
 	_, err = c.IsDeletedPath(path2)
 	th.NokPrefix(t, err, "No such file: "+path2)
 
 	_, err = c.IsDeletedChecksum(checksum2)
-	th.NokPrefix(t, err, "No such file: "+checksum2)
+	th.NokPrefix(t, err, fmt.Sprintf("No such file: %v", checksum2))
 }
 
 func TestSetMissing(t *testing.T) {
@@ -144,19 +145,19 @@ func TestSetMissing(t *testing.T) {
 	th.Equals(t, true, deleted)
 
 	path2 := "test_data/test2.txt"
-	checksum2 := "89b2b34c7b8d232041f0fcc1d213d7bc"
+	checksum2 := Checksum("89b2b34c7b8d232041f0fcc1d213d7bc")
 	_, err = c.Item(path2)
 	th.Nok(t, err, "No such file: "+path2)
 
 	items, err := c.ItemsByChecksum(checksum2)
-	th.Nok(t, err, "No such file: "+checksum2)
+	th.Nok(t, err, fmt.Sprintf("No such file: %v", checksum2))
 	th.Equals(t, []Item{}, items)
 
 	_, err = c.IsDeletedPath(path2)
 	th.NokPrefix(t, err, "No such file: "+path2)
 
 	_, err = c.IsDeletedChecksum(checksum2)
-	th.NokPrefix(t, err, "No such file: "+checksum2)
+	th.NokPrefix(t, err, fmt.Sprintf("No such file: %v", checksum2))
 }
 
 func TestSetExisting(t *testing.T) {
