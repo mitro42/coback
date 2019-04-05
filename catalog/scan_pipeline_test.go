@@ -293,39 +293,18 @@ func TestSumSizesInterrupt(t *testing.T) {
 	th.Assert(t, match, "Count or size mismatch")
 }
 
-func TestExpectNoItemsSuccess(t *testing.T) {
-	inputFiles := make(chan string)
-	error := make(chan struct{})
-	done := make(chan struct{})
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go expectNoItems(inputFiles, error, done, &wg)
-	close(done)
-	th.Equals(t, 0, len(error))
-	wg.Wait()
-}
-
-func TestExpectNoItemsFailure(t *testing.T) {
-	inputFiles := make(chan string)
-	error := make(chan struct{}, 1)
-	done := make(chan struct{})
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go expectNoItems(inputFiles, error, done, &wg)
-	inputFiles <- "x.txt"
-	close(done)
-	th.Equals(t, 1, len(error))
-	wg.Wait()
-}
-
 func TestCheckCatalogFileMissing(t *testing.T) {
 	countBar := newMockProgressBar()
 	sizeBar := newMockProgressBar()
 	fs := createSafeFs("test_data")
 	c := NewCatalog()
-	th.Equals(t, false, checkCatalogFile(fs, "no_such_file", c, countBar, sizeBar))
+	okFiles := make(chan string)
+	changedFiles := make(chan string)
+	th.Nok(t, checkCatalogFile(fs, "no_such_file", c, countBar, sizeBar, okFiles, changedFiles), "Cannot read file 'no_such_file'")
 	th.Equals(t, 0, countBar.incrByCount)
 	th.Equals(t, 0, sizeBar.incrByCount)
+	th.Equals(t, 0, len(okFiles))
+	th.Equals(t, 0, len(changedFiles))
 }
 
 func TestCheckCatalogFileNotInCatalog(t *testing.T) {
@@ -336,11 +315,15 @@ func TestCheckCatalogFileNotInCatalog(t *testing.T) {
 	fs := createSafeFs(filepath.Join(basePath, path))
 	filter := ExtensionFilter("txt")
 	c := ScanFolder(fs, "", filter)
-	th.Equals(t, false, checkCatalogFile(fs, "test1.txt", c, countBar, sizeBar))
+	okFiles := make(chan string, 1)
+	changedFiles := make(chan string, 1)
+	th.Nok(t, checkCatalogFile(fs, "test1.txt", c, countBar, sizeBar, okFiles, changedFiles), "Cannot find file in catalog 'test1.txt'")
 	th.Equals(t, 1, countBar.incrByCount)
 	th.Equals(t, int64(1), countBar.value)
 	th.Equals(t, 1, sizeBar.incrByCount)
 	th.Equals(t, int64(1160), sizeBar.value)
+	th.Equals(t, 0, len(okFiles))
+	th.Equals(t, 0, len(changedFiles))
 }
 
 func TestCheckCatalogFileSuccess(t *testing.T) {
@@ -350,11 +333,15 @@ func TestCheckCatalogFileSuccess(t *testing.T) {
 	path := "test_data"
 	fs := createSafeFs(filepath.Join(basePath, path))
 	c := ScanFolder(fs, "", noFilter{})
-	th.Equals(t, true, checkCatalogFile(fs, "test1.txt", c, countBar, sizeBar))
+	okFiles := make(chan string, 1)
+	changedFiles := make(chan string, 1)
+	th.Ok(t, checkCatalogFile(fs, "test1.txt", c, countBar, sizeBar, okFiles, changedFiles))
 	th.Equals(t, 1, countBar.incrByCount)
 	th.Equals(t, int64(1), countBar.value)
 	th.Equals(t, 1, sizeBar.incrByCount)
 	th.Equals(t, int64(1160), sizeBar.value)
+	th.Equals(t, "test1.txt", <-okFiles)
+	th.Equals(t, 0, len(changedFiles))
 }
 
 func TestCheckCatalogFileMismatch(t *testing.T) {
@@ -366,11 +353,26 @@ func TestCheckCatalogFileMismatch(t *testing.T) {
 	c := ScanFolder(fs, "", noFilter{})
 	modifiedFile := "test1.txt"
 	changeFileContent(fs, modifiedFile)
-	th.Equals(t, false, checkCatalogFile(fs, modifiedFile, c, countBar, sizeBar))
+	okFiles := make(chan string, 1)
+	changedFiles := make(chan string, 1)
+	th.Ok(t, checkCatalogFile(fs, modifiedFile, c, countBar, sizeBar, okFiles, changedFiles))
 	th.Equals(t, 1, countBar.incrByCount)
 	th.Equals(t, int64(1), countBar.value)
 	th.Equals(t, 1, sizeBar.incrByCount)
 	th.Equals(t, int64(1175), sizeBar.value)
+	th.Equals(t, 0, len(okFiles))
+	th.Equals(t, "test1.txt", <-changedFiles)
+}
+
+func collectFilesSync(c <-chan string) map[string]bool {
+	ret := make(map[string]bool)
+	for file := range c {
+		if file == "" {
+			break
+		}
+		ret[file] = true
+	}
+	return ret
 }
 
 func TestCheckExistingItemsSuccess(t *testing.T) {
@@ -380,47 +382,26 @@ func TestCheckExistingItemsSuccess(t *testing.T) {
 	path := filepath.Join(basePath, "test_data")
 	fs := createSafeFs(path)
 	c := ScanFolder(fs, "", noFilter{})
-	inputFiles := make(chan string, 1)
-	failure := make(chan struct{}, 10)
+	inputFiles := make(chan string, 4)
+	okFiles := make(chan string, 4)
+	changedFiles := make(chan string, 4)
 	done := make(chan struct{})
 	var wg sync.WaitGroup
 	wg.Add(1)
 
-	go checkExistingItems(fs, inputFiles, c, countBar, sizeBar, failure, done, &wg)
+	go checkExistingItems(fs, inputFiles, c, countBar, sizeBar, okFiles, changedFiles, done, &wg)
 	inputFiles <- "test1.txt"
 	inputFiles <- "subfolder/file1.bin"
 	inputFiles <- "test2.txt"
 	inputFiles <- ""
 	close(done)
 	wg.Wait()
-	th.Equals(t, 0, len(failure))
 	th.Equals(t, 3, countBar.incrByCount)
 	th.Equals(t, int64(3), countBar.value)
 	th.Equals(t, 3, sizeBar.incrByCount)
 	th.Equals(t, int64(3488), sizeBar.value)
-}
-
-func TestCheckExistingItemsNewFileOnDisk(t *testing.T) {
-	basePath, _ := os.Getwd()
-	countBar := newMockProgressBar()
-	sizeBar := newMockProgressBar()
-	path := filepath.Join(basePath, "test_data")
-	fs := createSafeFs(path)
-	c := ScanFolder(fs, "", ExtensionFilter("txt"))
-	inputFiles := make(chan string, 1)
-	failure := make(chan struct{}, 10)
-	done := make(chan struct{})
-	var wg sync.WaitGroup
-	wg.Add(1)
-
-	go checkExistingItems(fs, inputFiles, c, countBar, sizeBar, failure, done, &wg)
-	inputFiles <- "subfolder/file1.bin"
-	inputFiles <- "subfolder/file2.bin"
-	inputFiles <- "test1.txt"
-	inputFiles <- "test2.txt"
-	close(done)
-	wg.Wait()
-	th.Assert(t, len(failure) > 0, "At least one failure must be found")
+	expOk := map[string]bool{"test1.txt": true, "subfolder/file1.bin": true, "test2.txt": true}
+	th.Equals(t, expOk, collectFilesSync(okFiles))
 }
 
 func TestCheckExistingItemsMismatch(t *testing.T) {
@@ -429,21 +410,26 @@ func TestCheckExistingItemsMismatch(t *testing.T) {
 	sizeBar := newMockProgressBar()
 	path := filepath.Join(basePath, "test_data")
 	fs := createSafeFs(path)
-	c := ScanFolder(fs, "", ExtensionFilter("txt"))
+	c := ScanFolder(fs, "", noFilter{})
 	inputFiles := make(chan string, 1)
-	failure := make(chan struct{}, 10)
+	okFiles := make(chan string, 4)
+	changedFiles := make(chan string, 4)
 	done := make(chan struct{})
 	var wg sync.WaitGroup
 	wg.Add(1)
 
-	go checkExistingItems(fs, inputFiles, c, countBar, sizeBar, failure, done, &wg)
+	go checkExistingItems(fs, inputFiles, c, countBar, sizeBar, okFiles, changedFiles, done, &wg)
 	changeFileContent(fs, "test2.txt")
 	inputFiles <- "subfolder/file1.bin"
 	inputFiles <- "test2.txt"
 	inputFiles <- "subfolder/file2.bin"
 	close(done)
 	wg.Wait()
-	th.Equals(t, 1, len(failure))
+	expOk := map[string]bool{"subfolder/file2.bin": true, "subfolder/file1.bin": true}
+	expChanged := map[string]bool{"test2.txt": true}
+	th.Equals(t, expOk, collectFilesSync(okFiles))
+	th.Equals(t, expChanged, collectFilesSync(changedFiles))
+
 }
 
 func TestCheckFilterByCatalogNoFiles(t *testing.T) {
@@ -465,29 +451,21 @@ func TestCheckFilterByCatalogNoFiles(t *testing.T) {
 }
 
 func TestCheckFilterByCatalogEmptyCatalog(t *testing.T) {
-	inputFiles := []string{"subfolder/file1.bin", "subfolder/file2.bin", "test1.txt", "test2.txt"}
+	inputFiles := map[string]bool{"subfolder/file1.bin": true, "subfolder/file2.bin": true, "test1.txt": true, "test2.txt": true}
 	c := NewCatalog()
 	input := make(chan string, 10)
 	done := make(chan struct{})
 	var wg sync.WaitGroup
 	wg.Add(1)
 	known, unknown := filterByCatalog(input, c, done, &wg)
-	for _, item := range inputFiles {
-		input <- item
+	for k := range inputFiles {
+		input <- k
 	}
 	input <- ""
-	go func() {
-		for _, item := range inputFiles {
-			f := <-unknown
-			th.Equals(t, item, f)
-		}
-	}()
 
 	wg.Wait()
 	th.Equals(t, "", <-known)
-	th.Equals(t, "", <-unknown)
-	th.Equals(t, 0, len(known))
-	th.Equals(t, 0, len(unknown))
+	th.Equals(t, inputFiles, collectFilesSync(unknown))
 }
 
 func TestCheckFilterByCatalogMixed(t *testing.T) {
@@ -507,23 +485,12 @@ func TestCheckFilterByCatalogMixed(t *testing.T) {
 		input <- item
 	}
 	input <- ""
-	go func() {
-		for _, item := range inputFiles {
-			var f string
-			if filter.Include(item) {
-				f = <-known
-			} else {
-				f = <-unknown
-			}
-			th.Equals(t, item, f)
-		}
-	}()
+	expKnown := map[string]bool{"subfolder/file1.bin": true, "subfolder/file2.bin": true}
+	expUnknown := map[string]bool{"test1.txt": true, "test2.txt": true}
 
+	th.Equals(t, expKnown, collectFilesSync(known))
+	th.Equals(t, expUnknown, collectFilesSync(unknown))
 	wg.Wait()
-	th.Equals(t, "", <-known)
-	th.Equals(t, "", <-unknown)
-	th.Equals(t, 0, len(known))
-	th.Equals(t, 0, len(unknown))
 }
 
 func TestCheckFilterByCatalogInterrupted(t *testing.T) {

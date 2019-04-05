@@ -94,7 +94,11 @@ func TestCheckOk(t *testing.T) {
 	path := "test_data"
 	fs := createSafeFs(filepath.Join(basePath, path))
 	c := Scan(fs)
-	th.Equals(t, Same, Check(fs, c, noFilter{}))
+	cr := Check(fs, c, noFilter{})
+	th.Equals(t, 0, len(cr.Add))
+	th.Equals(t, 0, len(cr.Delete))
+	th.Equals(t, 0, len(cr.Update))
+	th.Equals(t, 4, len(cr.Ok))
 }
 
 func TestCheckFileMissingFromCatalog(t *testing.T) {
@@ -103,7 +107,12 @@ func TestCheckFileMissingFromCatalog(t *testing.T) {
 	fs := createSafeFs(filepath.Join(basePath, path))
 	filter := ExtensionFilter("bin")
 	c := ScanFolder(fs, "", filter)
-	th.Equals(t, Diff, Check(fs, c, noFilter{}))
+	cr := Check(fs, c, noFilter{})
+	expAdd := map[string]bool{"subfolder/file1.bin": true, "subfolder/file2.bin": true}
+	th.Equals(t, expAdd, cr.Add)
+	th.Equals(t, 0, len(cr.Delete))
+	th.Equals(t, 0, len(cr.Update))
+	th.Equals(t, 2, len(cr.Ok))
 }
 
 // This cannot be detected yet
@@ -130,7 +139,13 @@ func TestCheckItemChecksumMismatch(t *testing.T) {
 	item.Md5Sum = "abcdef"
 	err = c.Set(item)
 	th.Ok(t, err)
-	th.Equals(t, Diff, Check(fs, c, filter))
+	cr := Check(fs, c, noFilter{})
+	expAdd := map[string]bool{"subfolder/file1.bin": true, "subfolder/file2.bin": true}
+	expUpdate := map[string]bool{"test1.txt": true}
+	th.Equals(t, expAdd, cr.Add)
+	th.Equals(t, 0, len(cr.Delete))
+	th.Equals(t, expUpdate, cr.Update)
+	th.Equals(t, 1, len(cr.Ok))
 }
 
 func TestCheckItemSizeMismatch(t *testing.T) {
@@ -144,7 +159,13 @@ func TestCheckItemSizeMismatch(t *testing.T) {
 	item.Size = 6854
 	err = c.Set(item)
 	th.Ok(t, err)
-	th.Equals(t, Diff, Check(fs, c, filter))
+	cr := Check(fs, c, noFilter{})
+	expAdd := map[string]bool{"subfolder/file1.bin": true, "subfolder/file2.bin": true}
+	expUpdate := map[string]bool{"test1.txt": true}
+	th.Equals(t, expAdd, cr.Add)
+	th.Equals(t, 0, len(cr.Delete))
+	th.Equals(t, expUpdate, cr.Update)
+	th.Equals(t, 1, len(cr.Ok))
 }
 
 func TestCheckItemModificationTimeMismatch(t *testing.T) {
@@ -158,7 +179,13 @@ func TestCheckItemModificationTimeMismatch(t *testing.T) {
 	item.ModificationTime = "1924"
 	err = c.Set(item)
 	th.Ok(t, err)
-	th.Equals(t, Diff, Check(fs, c, filter))
+	cr := Check(fs, c, noFilter{})
+	expAdd := map[string]bool{"subfolder/file1.bin": true, "subfolder/file2.bin": true}
+	expUpdate := map[string]bool{"test1.txt": true}
+	th.Equals(t, expAdd, cr.Add)
+	th.Equals(t, 0, len(cr.Delete))
+	th.Equals(t, expUpdate, cr.Update)
+	th.Equals(t, 1, len(cr.Ok))
 }
 
 // Deleted flag handling will probably change in the future

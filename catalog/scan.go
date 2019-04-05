@@ -1,13 +1,13 @@
 package catalog
 
 import (
-	"errors"
 	"log"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/spf13/afero"
 	"github.com/vbauerster/mpb"
 	"github.com/vbauerster/mpb/decor"
@@ -21,27 +21,27 @@ type ProgressBar interface {
 	Current() int64
 }
 
-// CheckResult is the result of a check of a catalog against a folder on the disk
-type CheckResult int
+// CheckResult contains the details of catalog checked against a folder in the file system.
+// Ok (set of paths): these files have the same size, modification time and content in the catalog and the FS
+// Add (set of paths): these files are present in the FS but not int the catalog, have to be added
+// Delete (set of paths): these files are present in the catalog but not present in the FS anymore, have to be deleted
+// Update (set of paths): these files have different size, modification time or content in the catalog and the FS.
+//                          Probably a full re-scan should be done
+type CheckResult struct {
+	Ok     map[string]bool
+	Add    map[string]bool
+	Delete map[Checksum]bool
+	Update map[string]bool
+}
 
-const (
-	// Same is returned when the catalog's data is consistent with the checked folder
-	Same CheckResult = 0
-	// Diff is returned in any other case
-	Diff CheckResult = 1
-	// ContentDiff            CheckResult = 1
-	// DeletedFileFoundAgain  CheckResult = 2
-	// FileMissingFromCatalog CheckResult = 3
-)
-
-func (cr CheckResult) String() string {
-	names := [...]string{"Same",
-		"Diff"}
-
-	if cr < Same || cr > Diff {
-		return "UNKNOWN RESULT"
+// NewCheckResult creates a new CheckResult struct
+func NewCheckResult() CheckResult {
+	return CheckResult{
+		Ok:     make(map[string]bool),
+		Add:    make(map[string]bool),
+		Delete: make(map[Checksum]bool),
+		Update: make(map[string]bool),
 	}
-	return names[cr]
 }
 
 func walkFolder(fs afero.Fs, root string, done <-chan struct{}, wg *sync.WaitGroup) (<-chan string, <-chan int64) {
@@ -66,7 +66,6 @@ func walkFolder(fs afero.Fs, root string, done <-chan struct{}, wg *sync.WaitGro
 		})
 		files <- ""
 		sizes <- -1
-		log.Println("walkFolder go Done")
 	}()
 	return files, sizes
 }
@@ -108,12 +107,11 @@ func catalogFile(fs afero.Fs, path string, out chan Item, countBar ProgressBar, 
 
 // checkCatalogFile checks a given file (metadata and content) against a catalog
 // Returns true if the file at path exist and the content matches the catalog.
-func checkCatalogFile(fs afero.Fs, path string, c Catalog, countBar ProgressBar, sizeBar ProgressBar) bool {
+func checkCatalogFile(fs afero.Fs, path string, c Catalog, countBar ProgressBar, sizeBar ProgressBar, ok chan<- string, changed chan<- string) error {
 	start := time.Now()
 	item, err := newItem(fs, path)
 	if err != nil {
-		log.Printf("Cannot read file '%v'", path)
-		return false
+		return errors.Errorf("Cannot read file '%v'", path)
 	}
 
 	sizeBar.IncrBy(int(item.Size), time.Since(start))
@@ -121,10 +119,16 @@ func checkCatalogFile(fs afero.Fs, path string, c Catalog, countBar ProgressBar,
 	itemInCatalog, err := c.Item(path)
 
 	if err != nil {
-		log.Printf("Cannot find file in catalog '%v'", path)
-		return false
+		return errors.Errorf("Cannot find file in catalog '%v'", path)
 	}
-	return *item == itemInCatalog
+
+	if *item == itemInCatalog {
+		ok <- path
+	} else {
+		changed <- path
+	}
+
+	return nil
 }
 
 // readCatalogItems creates the CatalogItems for the incoming paths
@@ -183,8 +187,9 @@ func checkExistingItems(fs afero.Fs,
 	c Catalog,
 	countBar ProgressBar,
 	sizeBar ProgressBar,
-	failed chan<- struct{},
-	done chan struct{},
+	ok chan<- string,
+	changed chan<- string,
+	done chan struct{}, // ToDo: remove
 	globalWg *sync.WaitGroup) {
 
 	var wg sync.WaitGroup
@@ -204,9 +209,8 @@ func checkExistingItems(fs afero.Fs,
 							paths <- ""     // make one of its siblings stop
 							break
 						}
-						if !checkCatalogFile(fs, path, c, countBar, sizeBar) {
-							failed <- struct{}{}
-							return
+						if err := checkCatalogFile(fs, path, c, countBar, sizeBar, ok, changed); err != nil {
+							log.Println(err)
 						}
 					case <-done:
 						return
@@ -215,6 +219,8 @@ func checkExistingItems(fs afero.Fs,
 			}()
 		}
 		wg.Wait()
+		ok <- ""
+		changed <- ""
 		sizeBar.SetTotal(sizeBar.Current(), true)
 		countBar.SetTotal(countBar.Current(), true)
 	}()
@@ -340,8 +346,8 @@ func Scan(fs afero.Fs) Catalog {
 // it is put to known otherwise to unknown.
 // The processing can be interrupted by a message sent to the done channel.
 func filterByCatalog(files <-chan string, c Catalog, done <-chan struct{}, wg *sync.WaitGroup) (known chan string, unknown chan string) {
-	known = make(chan string, 1)
-	unknown = make(chan string, 1)
+	known = make(chan string, 100)
+	unknown = make(chan string, 100)
 	go func() {
 		defer wg.Done()
 	L:
@@ -355,8 +361,10 @@ func filterByCatalog(files <-chan string, c Catalog, done <-chan struct{}, wg *s
 				}
 				if _, err := c.Item(file); err == nil {
 					known <- file
+					log.Printf("known: %v", file)
 				} else {
 					unknown <- file
+					log.Printf("unknown %v", file)
 				}
 			case <-done:
 				break L
@@ -366,24 +374,14 @@ func filterByCatalog(files <-chan string, c Catalog, done <-chan struct{}, wg *s
 	return
 }
 
-// expectNoItems reads from the items channels, and sends a message to itemReceived if found anything.
-// Can be interrupted by sending a message to the done channel.
-// In any case termination is signaled through wg.
-func expectNoItems(items <-chan string, itemReceived chan<- struct{}, done <-chan struct{}, wg *sync.WaitGroup) {
-	defer wg.Done()
-L:
-	for {
-		select {
-		case item := <-items:
-			if item == "" {
-				break L
-			}
-			itemReceived <- struct{}{}
+func collectFiles(c <-chan string, m map[string]bool, wg *sync.WaitGroup) {
+	for file := range c {
+		if file == "" {
 			break
-		case <-done:
-			break L
 		}
+		m[file] = true
 	}
+	wg.Done()
 }
 
 // Check scans a folder and compare its contents to the contents of the catalog.
@@ -391,42 +389,27 @@ L:
 // Returns true if the catalog is consistent with the file system,
 // and false if there is a mismatch
 func Check(fs afero.Fs, c Catalog, filter FileFilter) CheckResult {
-	checkFailed := make(chan struct{})
+	okFiles := make(chan string, 1)
+	changedFiles := make(chan string, 1)
 	done := make(chan struct{})
-	allDone := make(chan struct{})
 	var wg sync.WaitGroup
-	wg.Add(6)
+	wg.Add(8)
 
 	p, countBar, sizeBar := createProgressBars()
 
 	files, sizes := walkFolder(fs, ".", done, &wg)
 	filteredFiles := filterFiles(files, filter, done, &wg)
 	knownFiles, unknownFiles := filterByCatalog(filteredFiles, c, done, &wg)
-	go expectNoItems(unknownFiles, checkFailed, done, &wg)
-	checkExistingItems(fs, knownFiles, c, countBar, sizeBar, checkFailed, done, &wg)
-	// processedFileCount := make(chan int64, 1)
+	checkExistingItems(fs, knownFiles, c, countBar, sizeBar, okFiles, changedFiles, done, &wg)
 	go sumSizes(sizes, countBar, sizeBar, nil, done, &wg)
+	ret := NewCheckResult()
 
-	go func() {
-		wg.Wait()
-		allDone <- struct{}{}
-	}()
-
-	ret := Same
-	go func() {
-		select {
-		case <-checkFailed:
-			log.Println("checkFailed arrived")
-			ret = Diff
-			close(done)
+	collectFiles(okFiles, ret.Ok, &wg)
+	collectFiles(changedFiles, ret.Update, &wg)
+	collectFiles(unknownFiles, ret.Add, &wg)
 			wg.Wait()
-			<-allDone
-		case <-allDone:
-			close(done)
-		}
-	}()
 
 	p.Wait()
-	log.Printf("Check done, returning %+v", ret)
+	log.Printf("Check done, ok: %v, to update: %v, to add: %v", len(ret.Ok), len(ret.Update), len(ret.Add))
 	return ret
 }
