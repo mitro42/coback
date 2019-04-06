@@ -44,7 +44,7 @@ func NewCheckResult() CheckResult {
 	}
 }
 
-func walkFolder(fs afero.Fs, root string, done <-chan struct{}, wg *sync.WaitGroup) (<-chan string, <-chan int64) {
+func walkFolder(fs afero.Fs, root string, wg *sync.WaitGroup) (<-chan string, <-chan int64) {
 	files := make(chan string, 100000)
 	sizes := make(chan int64, 100000)
 	if exist, err := afero.DirExists(fs, root); err != nil || !exist {
@@ -53,16 +53,11 @@ func walkFolder(fs afero.Fs, root string, done <-chan struct{}, wg *sync.WaitGro
 	go func() {
 		defer wg.Done()
 		afero.Walk(fs, root, func(path string, fi os.FileInfo, err error) error {
-			select {
-			case <-done:
-				return errors.New("Cancelled")
-			default:
 				if !fi.IsDir() && fi.Name() != CatalogFileName {
 					files <- path
 					sizes <- fi.Size()
 				}
 				return nil
-			}
 		})
 		files <- ""
 		sizes <- -1
@@ -70,24 +65,18 @@ func walkFolder(fs afero.Fs, root string, done <-chan struct{}, wg *sync.WaitGro
 	return files, sizes
 }
 
-func filterFiles(files <-chan string, filter FileFilter, done <-chan struct{}, wg *sync.WaitGroup) chan string {
+func filterFiles(files <-chan string, filter FileFilter, wg *sync.WaitGroup) chan string {
 	filtered := make(chan string, 10000)
 
 	go func() {
 		defer wg.Done()
-		finished := false
-		for !finished {
-			select {
-			case file := <-files:
+		for file := range files {
 				if file == "" {
-					finished = true
+				break
 				} else if filter.Include(file) {
 					filtered <- file
 				}
-			case <-done:
-				finished = true
 			}
-		}
 		filtered <- ""
 	}()
 	return filtered
@@ -139,7 +128,6 @@ func readCatalogItems(fs afero.Fs,
 	paths chan string,
 	countBar ProgressBar,
 	sizeBar ProgressBar,
-	done chan struct{},
 	globalWg *sync.WaitGroup) <-chan Item {
 
 	out := make(chan Item, 10)
@@ -150,20 +138,13 @@ func readCatalogItems(fs afero.Fs,
 		defer globalWg.Done()
 		for i := 0; i < concurrency; i++ {
 			go func() {
-				finished := false
-				for !finished {
-					select {
-					case path := <-paths:
+				for path := range paths {
 						if path == "" {
-							finished = true // make this goroutine stop
-							paths <- ""     // make one of its siblings stop
+						paths <- "" // make one of the siblings stop
 							break
 						}
 						catalogFile(fs, path, out, countBar, sizeBar)
-					case <-done:
-						finished = true
 					}
-				}
 				wg.Done()
 			}()
 		}
@@ -189,7 +170,6 @@ func checkExistingItems(fs afero.Fs,
 	sizeBar ProgressBar,
 	ok chan<- string,
 	changed chan<- string,
-	done chan struct{}, // ToDo: remove
 	globalWg *sync.WaitGroup) {
 
 	var wg sync.WaitGroup
@@ -200,22 +180,15 @@ func checkExistingItems(fs afero.Fs,
 		for i := 0; i < concurrency; i++ {
 			go func() {
 				defer wg.Done()
-				finished := false
-				for !finished {
-					select {
-					case path := <-paths:
+				for path := range paths {
 						if path == "" {
-							finished = true // make this goroutine stop
-							paths <- ""     // make one of its siblings stop
+						paths <- "" // make one of the siblings stop
 							break
 						}
 						if err := checkCatalogFile(fs, path, c, countBar, sizeBar, ok, changed); err != nil {
 							log.Println(err)
 						}
-					case <-done:
-						return
 					}
-				}
 			}()
 		}
 		wg.Wait()
@@ -229,27 +202,19 @@ func checkExistingItems(fs afero.Fs,
 
 // sumSizes calculates the sum of the numbers read from the sizes channel.
 // It can be interrupted with the done channel
-func sumSizes(sizes <-chan int64, countBar ProgressBar, sizeBar ProgressBar, fileCount chan<- int64, done <-chan struct{}, wg *sync.WaitGroup) {
+func sumSizes(sizes <-chan int64, countBar ProgressBar, sizeBar ProgressBar, fileCount chan<- int64, wg *sync.WaitGroup) {
 	defer wg.Done()
 	total := int64(0)
 	count := int64(0)
-	finished := false
-	for !finished {
-		select {
-		case s := <-sizes:
+	for s := range sizes {
 			if s == -1 {
-				finished = true
 				break
 			}
 			total += s
 			count++
 			sizeBar.SetTotal(total, false)
 			countBar.SetTotal(count, false)
-		case <-done:
-			count = -1
-			finished = true
 		}
-	}
 	if fileCount != nil {
 		fileCount <- count
 }
@@ -282,16 +247,13 @@ func createProgressBars() (*mpb.Progress, ProgressBar, ProgressBar) {
 }
 
 func saveCatalog(fs afero.Fs, catalogPath string, items <-chan Item,
-	result chan<- Catalog, done <-chan struct{}, wg *sync.WaitGroup) {
+	result chan<- Catalog, wg *sync.WaitGroup) {
 	defer wg.Done()
 	lastSave := time.Now()
 	c := NewCatalog()
-L:
-	for {
-		select {
-		case item := <-items:
+	for item := range items {
 			if (item == Item{}) {
-				break L
+			break
 			}
 			err := c.Add(item)
 			if err != nil {
@@ -304,10 +266,7 @@ L:
 					log.Printf("Failed to update catalog: %v", err)
 				}
 			}
-		case <-done:
-			break L
 		}
-	}
 
 	err := c.Write(fs, catalogPath)
 	if err != nil {
@@ -319,18 +278,16 @@ L:
 // ScanFolder recursively scans the root folder and adds all files to the catalog
 func ScanFolder(fs afero.Fs, root string, filter FileFilter) Catalog {
 	var wg sync.WaitGroup
-	done := make(chan struct{})
 	p, countBar, sizeBar := createProgressBars()
 	wg.Add(5)
-	files, sizes := walkFolder(fs, root, done, &wg)
-	filteredFiles := filterFiles(files, filter, done, &wg)
-	items := readCatalogItems(fs, filteredFiles, countBar, sizeBar, done, &wg)
-	go sumSizes(sizes, countBar, sizeBar, nil, done, &wg)
+	files, sizes := walkFolder(fs, root, &wg)
+	filteredFiles := filterFiles(files, filter, &wg)
+	items := readCatalogItems(fs, filteredFiles, countBar, sizeBar, &wg)
+	go sumSizes(sizes, countBar, sizeBar, nil, &wg)
 	result := make(chan Catalog)
 	catalogFilePath := filepath.Join(root, CatalogFileName)
-	go saveCatalog(fs, catalogFilePath, items, result, done, &wg)
+	go saveCatalog(fs, catalogFilePath, items, result, &wg)
 	ret := <-result
-	close(done)
 	p.Wait()
 	return ret
 }
@@ -345,29 +302,21 @@ func Scan(fs afero.Fs) Catalog {
 // If an file read from the files channel is in the catalog (only the path is checked, no metadata, no contents)
 // it is put to known otherwise to unknown.
 // The processing can be interrupted by a message sent to the done channel.
-func filterByCatalog(files <-chan string, c Catalog, done <-chan struct{}, wg *sync.WaitGroup) (known chan string, unknown chan string) {
+func filterByCatalog(files <-chan string, c Catalog, wg *sync.WaitGroup) (known chan string, unknown chan string) {
 	known = make(chan string, 100)
 	unknown = make(chan string, 100)
 	go func() {
 		defer wg.Done()
-	L:
-		for {
-			select {
-			case file := <-files:
+		for file := range files {
 				if file == "" {
 					known <- ""
 					unknown <- ""
-					break L
+				break
 				}
 				if _, err := c.Item(file); err == nil {
 					known <- file
-					log.Printf("known: %v", file)
 				} else {
 					unknown <- file
-					log.Printf("unknown %v", file)
-				}
-			case <-done:
-				break L
 			}
 		}
 	}()
@@ -391,17 +340,16 @@ func collectFiles(c <-chan string, m map[string]bool, wg *sync.WaitGroup) {
 func Check(fs afero.Fs, c Catalog, filter FileFilter) CheckResult {
 	okFiles := make(chan string, 1)
 	changedFiles := make(chan string, 1)
-	done := make(chan struct{})
 	var wg sync.WaitGroup
 	wg.Add(8)
 
 	p, countBar, sizeBar := createProgressBars()
 
-	files, sizes := walkFolder(fs, ".", done, &wg)
-	filteredFiles := filterFiles(files, filter, done, &wg)
-	knownFiles, unknownFiles := filterByCatalog(filteredFiles, c, done, &wg)
-	checkExistingItems(fs, knownFiles, c, countBar, sizeBar, okFiles, changedFiles, done, &wg)
-	go sumSizes(sizes, countBar, sizeBar, nil, done, &wg)
+	files, sizes := walkFolder(fs, ".", &wg)
+	filteredFiles := filterFiles(files, filter, &wg)
+	knownFiles, unknownFiles := filterByCatalog(filteredFiles, c, &wg)
+	checkExistingItems(fs, knownFiles, c, countBar, sizeBar, okFiles, changedFiles, &wg)
+	go sumSizes(sizes, countBar, sizeBar, nil, &wg)
 	ret := NewCheckResult()
 
 	collectFiles(okFiles, ret.Ok, &wg)
