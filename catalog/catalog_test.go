@@ -10,13 +10,6 @@ import (
 	"github.com/spf13/afero"
 )
 
-func createSafeFs(basePath string) afero.Fs {
-	base := afero.NewBasePathFs(afero.NewOsFs(), basePath)
-	roBase := afero.NewReadOnlyFs(base)
-	sfs := afero.NewCopyOnWriteFs(roBase, afero.NewMemMapFs())
-	return sfs
-}
-
 func TestRemoveItem(t *testing.T) {
 	th.Equals(t, []int{}, removeItem([]int{}, 42))
 	th.Equals(t, []int{}, removeItem([]int{42}, 42))

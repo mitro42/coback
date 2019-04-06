@@ -54,3 +54,10 @@ func changeFileContent(fs afero.Fs, path string) error {
 	}
 	return f.Close()
 }
+
+func createSafeFs(basePath string) afero.Fs {
+	base := afero.NewBasePathFs(afero.NewOsFs(), basePath)
+	roBase := afero.NewReadOnlyFs(base)
+	sfs := afero.NewCopyOnWriteFs(roBase, afero.NewMemMapFs())
+	return sfs
+}
