@@ -284,10 +284,13 @@ func ScanFolder(fs afero.Fs, root string, filter FileFilter) Catalog {
 	filteredFiles := filterFiles(files, filter, &wg)
 	items := readCatalogItems(fs, filteredFiles, countBar, sizeBar, &wg)
 	go sumSizes(sizes, countBar, sizeBar, nil, &wg)
-	result := make(chan Catalog)
+	result := make(chan Catalog, 1)
 	catalogFilePath := filepath.Join(root, CatalogFileName)
 	go saveCatalog(fs, catalogFilePath, items, result, &wg)
+	wg.Wait()
 	ret := <-result
+	sizeBar.SetTotal(sizeBar.Current(), true)
+	countBar.SetTotal(countBar.Current(), true)
 	p.Wait()
 	return ret
 }
