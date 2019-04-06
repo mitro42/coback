@@ -52,8 +52,5 @@ func changeFileContent(fs afero.Fs, path string) error {
 	if _, err := f.Write([]byte("Some new stuff\n")); err != nil {
 		return err
 	}
-	if err := f.Close(); err != nil {
-		return err
-	}
-	return nil
+	return f.Close()
 }
