@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"os"
+	"sync"
 	"time"
 
 	"github.com/spf13/afero"
@@ -14,6 +15,7 @@ type mockProgressBar struct {
 	done          bool
 	incrByCount   int
 	setTotalCount int
+	mux           sync.Mutex
 }
 
 func newMockProgressBar() *mockProgressBar {
@@ -21,18 +23,24 @@ func newMockProgressBar() *mockProgressBar {
 }
 
 func (m *mockProgressBar) SetTotal(total int64, final bool) {
+	m.mux.Lock()
+	defer m.mux.Unlock()
 	m.total = total
 	m.done = final
 	m.setTotalCount++
 }
 
 func (m *mockProgressBar) IncrBy(n int, wdd ...time.Duration) {
+	m.mux.Lock()
+	defer m.mux.Unlock()
 	m.value += int64(n)
 	m.elapsed += wdd[0]
 	m.incrByCount++
 }
 
 func (m *mockProgressBar) Current() int64 {
+	m.mux.Lock()
+	defer m.mux.Unlock()
 	return m.value
 }
 
