@@ -55,9 +55,31 @@ func changeFileContent(fs afero.Fs, path string) error {
 	return f.Close()
 }
 
+type dummyFileDescription struct {
+	Path    string
+	Size    int64
+	Md5Sum  Checksum
+	Content string
+}
+
+var dummies = []dummyFileDescription{
+	{"subfolder/dummy1", 32, "30fac14a21fcc0c2d126a159beb14cb5", "This is just some dummy content\n"},
+	{"dummy2", 351, "546ea07b13dc314506dc2e48dcc2a9d1", "Just some other content... On the other hand, we denounce with righteous indignation and dislike men who are so beguiled and demoralized by the charms of pleasure of the moment, so blinded by desire, that they cannot foresee the pain and trouble that are bound to ensue; and equal blame belongs to those who fail in their duty through weakness of will"},
+}
 func createSafeFs(basePath string) afero.Fs {
 	base := afero.NewBasePathFs(afero.NewOsFs(), basePath)
 	roBase := afero.NewReadOnlyFs(base)
 	sfs := afero.NewCopyOnWriteFs(roBase, afero.NewMemMapFs())
 	return sfs
+}
+
+func createDummyFile(fs afero.Fs, file dummyFileDescription) error {
+	f, err := fs.OpenFile(file.Path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	if _, err := f.Write([]byte(file.Content)); err != nil {
+		return err
+	}
+	return f.Close()
 }

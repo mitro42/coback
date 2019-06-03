@@ -188,6 +188,32 @@ func TestCheckItemModificationTimeMismatch(t *testing.T) {
 	th.Equals(t, 1, len(cr.Ok))
 }
 
+func TestScanAdd(t *testing.T) {
+	basePath, _ := os.Getwd()
+	path := "test_data"
+	fs := createSafeFs(filepath.Join(basePath, path))
+	c := Scan(fs)
+
+	dummy0 := dummies[0]
+	dummy1 := dummies[1]
+	createDummyFile(fs, dummy0)
+	createDummyFile(fs, dummy1)
+
+	checkResult := Check(fs, c, noFilter{})
+	c2 := ScanAdd(fs, c, checkResult)
+
+	th.Equals(t, 4, c.Count())
+	th.Equals(t, 0, c.DeletedCount())
+	th.Equals(t, 6, c2.Count())
+	th.Equals(t, 0, c.DeletedCount())
+	checkFilesInCatalog(t, c2, "subfolder/file1.bin", 1024, "1cb0bad847fb90f95a767854932ec7c4")
+	checkFilesInCatalog(t, c2, "subfolder/file2.bin", 1500, "f350c40373648527aa95b15786473501")
+	checkFilesInCatalog(t, c2, "test1.txt", 1160, "b3cd1cf6179bca32fd5d76473b129117")
+	checkFilesInCatalog(t, c2, "test2.txt", 1304, "89b2b34c7b8d232041f0fcc1d213d7bc")
+	checkFilesInCatalog(t, c2, dummy0.Path, dummy0.Size, dummy0.Md5Sum)
+	checkFilesInCatalog(t, c2, dummy1.Path, dummy1.Size, dummy1.Md5Sum)
+}
+
 // Deleted flag handling will probably change in the future
 //
 // func TestCheckItemDeletedFlagMismatch(t *testing.T) {

@@ -246,33 +246,39 @@ func createProgressBars() (*mpb.Progress, ProgressBar, ProgressBar) {
 	return p, countBar, sizeBar
 }
 
-func saveCatalog(fs afero.Fs, catalogPath string, items <-chan Item,
+func updateAndSaveCatalog(fs afero.Fs, c Catalog, catalogPath string, items <-chan Item,
 	result chan<- Catalog, wg *sync.WaitGroup) {
 	defer wg.Done()
+	ret := c.Clone()
 	lastSave := time.Now()
-	c := NewCatalog()
 	for item := range items {
 			if (item == Item{}) {
 			break
 			}
-			err := c.Add(item)
+		err := ret.Add(item)
 			if err != nil {
 				log.Printf("Cannot save catalog: %v", err)
 			}
 			if time.Since(lastSave).Seconds() > 5.0 {
 				lastSave = time.Now()
-				err := c.Write(fs, catalogPath)
+			err := ret.Write(fs, catalogPath)
 				if err != nil {
 					log.Printf("Failed to update catalog: %v", err)
 				}
 			}
 		}
 
-	err := c.Write(fs, catalogPath)
+	err := ret.Write(fs, catalogPath)
 	if err != nil {
 		log.Printf("Failed to update catalog: %v", err)
 	}
-	result <- c
+	result <- ret
+}
+
+func saveCatalog(fs afero.Fs, catalogPath string, items <-chan Item,
+	result chan<- Catalog, wg *sync.WaitGroup) {
+	c := NewCatalog()
+	updateAndSaveCatalog(fs, c, catalogPath, items, result, wg)
 }
 
 // ScanFolder recursively scans the root folder and adds all files to the catalog
@@ -298,6 +304,49 @@ func ScanFolder(fs afero.Fs, root string, filter FileFilter) Catalog {
 // Scan recursively scans the whole file system
 func Scan(fs afero.Fs) Catalog {
 	return ScanFolder(fs, ".", noFilter{})
+}
+
+// fileSizes gets a set of file paths (as returned by Check) and return their file sizes
+// the same way as walkFolder
+func fileSizes(fs afero.Fs, paths map[string]bool, wg *sync.WaitGroup) (chan string, <-chan int64) {
+	files := make(chan string, 100000)
+	sizes := make(chan int64, 100000)
+	go func() {
+		defer wg.Done()
+		for path := range paths {
+			fi, err := fs.Stat(path)
+			if err != nil {
+				log.Printf("Cannot read file '%v'", path)
+			}
+			files <- path
+			sizes <- fi.Size()
+		}
+		files <- ""
+		sizes <- -1
+	}()
+	return files, sizes
+}
+
+// ScanAdd performs a scan on a folder and checks the contents against a catalog   .
+// If new files are missing from the catalog they are added and a modified catalog is returned.
+func ScanAdd(fs afero.Fs, c Catalog, cr CheckResult) Catalog {
+	var wg sync.WaitGroup
+	p, countBar, sizeBar := createProgressBars()
+	wg.Add(4)
+	const root = "."
+	files, sizes := fileSizes(fs, cr.Add, &wg)
+	items := readCatalogItems(fs, files, countBar, sizeBar, &wg)
+	go sumSizes(sizes, countBar, sizeBar, nil, &wg)
+
+	result := make(chan Catalog, 1)
+	catalogFilePath := filepath.Join(root, CatalogFileName)
+	go updateAndSaveCatalog(fs, c, catalogFilePath, items, result, &wg)
+	wg.Wait()
+	ret := <-result
+	sizeBar.SetTotal(sizeBar.Current(), true)
+	countBar.SetTotal(countBar.Current(), true)
+	p.Wait()
+	return ret
 }
 
 // filterByCatalog separate the incoming files (typically contents of the file system)
