@@ -29,6 +29,7 @@ type Catalog interface {
 	IsDeletedChecksum(sum Checksum) (bool, error)
 	Write(fs afero.Fs, path string) error
 	Clone() Catalog
+	FilterNew(other Catalog) Catalog
 }
 
 type catalog struct {
@@ -173,6 +174,18 @@ func (c *catalog) Write(fs afero.Fs, path string) error {
 	json, _ := json.Marshal(c)
 	err := afero.WriteFile(fs, path, json, 0644)
 	return errors.Wrapf(err, "Cannot save catalog to file: '%v'", path)
+}
+
+// FilterNew compares the catalog to another catalog and returns
+// a new catalog that only contains files that are not present in the other
+func (c *catalog) FilterNew(other Catalog) Catalog {
+	ret := NewCatalog()
+	for _, item := range c.Items {
+		if _, err := other.ItemsByChecksum(item.Md5Sum); err != nil {
+			ret.Add(item)
+		}
+	}
+	return ret
 }
 
 // Read reads catalog stored in a json file

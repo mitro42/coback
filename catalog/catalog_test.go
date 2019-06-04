@@ -236,3 +236,27 @@ func TestClone(t *testing.T) {
 	th.Equals(t, c.checksumToIdx, clone.checksumToIdx)
 	th.Assert(t, &c.checksumToIdx != &clone.checksumToIdx, "clone.checksumToIdx should be a different object")
 }
+
+func TestFilterNew(t *testing.T) {
+	a := Item{Path: "some/path/to/a", Md5Sum: "a", Size: 42}
+	b := Item{Path: "some/other/b", Md5Sum: "b", Size: 213456}
+	c := Item{Path: "path_to/c", Md5Sum: "c", Size: 987}
+	collection := NewCatalog()
+	newFolder := NewCatalog()
+
+	collection.Add(a)
+	collection.Add(b)
+	expected := NewCatalog()
+	th.Equals(t, expected, newFolder.FilterNew(collection))
+
+	newFolder.Add(b)
+	th.Equals(t, expected, newFolder.FilterNew(collection))
+
+	newFolder.Add(c)
+	expected.Add(c)
+	th.Equals(t, expected, newFolder.FilterNew(collection))
+
+	collection.Add(c)
+	expected = NewCatalog()
+	th.Equals(t, expected, newFolder.FilterNew(collection))
+}
