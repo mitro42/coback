@@ -228,7 +228,9 @@ func createProgressBars() (*mpb.Progress, ProgressBar, ProgressBar) {
 	countBar := p.AddBar(int64(0),
 		mpb.PrependDecorators(
 			decor.Name(countName, decor.WC{W: len(countName) + 2, C: decor.DidentRight}),
-			decor.CountersNoUnit("%8d / %8d "),
+			// The counters must be removed on completion because if the total stays 0 (no file found),
+			// on completion it looks like it jumps to some memory garbage
+			decor.OnComplete(decor.CountersNoUnit("%8d / %8d "), ""),
 		),
 		mpb.AppendDecorators(decor.Percentage()),
 	)
@@ -236,7 +238,8 @@ func createProgressBars() (*mpb.Progress, ProgressBar, ProgressBar) {
 	sizeBar := p.AddBar(int64(0),
 		mpb.PrependDecorators(
 			decor.Name(sizeName, decor.WC{W: len(countName) + 2, C: decor.DidentRight}),
-			decor.CountersKibiByte("%8.1f / %8.1f "),
+			// see above
+			decor.OnComplete(decor.CountersKibiByte("%8.1f / %8.1f "), ""),
 		),
 		mpb.AppendDecorators(
 			decor.Percentage(),
