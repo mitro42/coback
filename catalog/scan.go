@@ -388,11 +388,9 @@ func collectFiles(c <-chan string, m map[string]bool, wg *sync.WaitGroup) {
 	wg.Done()
 }
 
-// Check scans a folder and compare its contents to the contents of the catalog.
-// Compares all data and content. It performs a full scan but stops at the first mismatch.
-// Returns true if the catalog is consistent with the file system,
-// and false if there is a mismatch
-func Check(fs afero.Fs, c Catalog, filter FileFilter) CheckResult {
+// CheckFiltered scans a folder and compares its contents to the contents of the catalog.
+// It performs a full scan and returns the file paths separated into multiple lists based on the file status.
+func CheckFiltered(fs afero.Fs, c Catalog, filter FileFilter) CheckResult {
 	okFiles := make(chan string, 1)
 	changedFiles := make(chan string, 1)
 	var wg sync.WaitGroup
@@ -413,6 +411,11 @@ func Check(fs afero.Fs, c Catalog, filter FileFilter) CheckResult {
 			wg.Wait()
 
 	p.Wait()
-	log.Printf("Check done, ok: %v, to update: %v, to add: %v", len(ret.Ok), len(ret.Update), len(ret.Add))
+	// log.Printf("Check done, ok: %v, to update: %v, to add: %v", len(ret.Ok), len(ret.Update), len(ret.Add))
 	return ret
+}
+
+// Check scans a folder and compares it to the catalog the same way as CheckFilter does but without filtering out any files
+func Check(fs afero.Fs, c Catalog) CheckResult {
+	return CheckFiltered(fs, c, noFilter{})
 }

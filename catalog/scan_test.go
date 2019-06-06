@@ -95,7 +95,7 @@ func TestCheckOk(t *testing.T) {
 	path := "test_data"
 	fs := createSafeFs(filepath.Join(basePath, path))
 	c := Scan(fs)
-	cr := Check(fs, c, noFilter{})
+	cr := Check(fs, c)
 	th.Equals(t, 0, len(cr.Add))
 	th.Equals(t, 0, len(cr.Delete))
 	th.Equals(t, 0, len(cr.Update))
@@ -108,7 +108,7 @@ func TestCheckFileMissingFromCatalog(t *testing.T) {
 	fs := createSafeFs(filepath.Join(basePath, path))
 	filter := ExtensionFilter("bin")
 	c := ScanFolder(fs, "", filter)
-	cr := Check(fs, c, noFilter{})
+	cr := Check(fs, c)
 	expAdd := map[string]bool{"subfolder/file1.bin": true, "subfolder/file2.bin": true}
 	th.Equals(t, expAdd, cr.Add)
 	th.Equals(t, 0, len(cr.Delete))
@@ -140,7 +140,7 @@ func TestCheckItemChecksumMismatch(t *testing.T) {
 	item.Md5Sum = "abcdef"
 	err = c.Set(item)
 	th.Ok(t, err)
-	cr := Check(fs, c, noFilter{})
+	cr := Check(fs, c)
 	expAdd := map[string]bool{"subfolder/file1.bin": true, "subfolder/file2.bin": true}
 	expUpdate := map[string]bool{"test1.txt": true}
 	th.Equals(t, expAdd, cr.Add)
@@ -160,7 +160,7 @@ func TestCheckItemSizeMismatch(t *testing.T) {
 	item.Size = 6854
 	err = c.Set(item)
 	th.Ok(t, err)
-	cr := Check(fs, c, noFilter{})
+	cr := Check(fs, c)
 	expAdd := map[string]bool{"subfolder/file1.bin": true, "subfolder/file2.bin": true}
 	expUpdate := map[string]bool{"test1.txt": true}
 	th.Equals(t, expAdd, cr.Add)
@@ -180,7 +180,7 @@ func TestCheckItemModificationTimeMismatch(t *testing.T) {
 	item.ModificationTime = "1924"
 	err = c.Set(item)
 	th.Ok(t, err)
-	cr := Check(fs, c, noFilter{})
+	cr := Check(fs, c)
 	expAdd := map[string]bool{"subfolder/file1.bin": true, "subfolder/file2.bin": true}
 	expUpdate := map[string]bool{"test1.txt": true}
 	th.Equals(t, expAdd, cr.Add)
@@ -200,7 +200,7 @@ func TestScanAdd(t *testing.T) {
 	createDummyFile(fs, dummy0)
 	createDummyFile(fs, dummy1)
 
-	checkResult := Check(fs, c, noFilter{})
+	checkResult := Check(fs, c)
 	c2 := ScanAdd(fs, c, checkResult)
 
 	th.Equals(t, 4, c.Count())
