@@ -8,26 +8,6 @@ import (
 	"github.com/spf13/afero"
 )
 
-// ensureDirectoryExist makes sure that the path it gets is a directory.
-// Returns an error if the path is a file or if it doesn't exist and cannot be created.
-func ensureDirectoryExist(path string) error {
-	stat, err := os.Stat(path)
-
-	if os.IsNotExist(err) {
-		err = os.MkdirAll(path, 0755)
-		if err != nil {
-			return fmt.Errorf("Failed to create directory: '%v'", path)
-		}
-		return nil
-	}
-
-	if stat.Mode().IsRegular() {
-		return fmt.Errorf("Path is a file: '%v'", path)
-	}
-
-	return nil
-}
-
 // updateCatalog reads a catalog file in the base of the FS, checks it against the contents of the FS
 // and updates it as necessary. The returned Catalog is always consistent with the FS.
 // The result is undefined if the FS is changed by other processes.
@@ -63,11 +43,12 @@ func updateCatalog(fs afero.Fs, name string) (catalog.Catalog, error) {
 // and will have an up to date catalog in it.
 func initializeFolder(path string, name string) (afero.Fs, catalog.Catalog, error) {
 	fmt.Printf("***************** Processing %v folder ***************\n", name)
-	err := ensureDirectoryExist(path)
+	baseFs := afero.NewOsFs()
+	err := ensureDirectoryExist(baseFs, path)
 	if err != nil {
 		return nil, nil, err
 	}
-	fs := afero.NewBasePathFs(afero.NewOsFs(), path)
+	fs := afero.NewBasePathFs(baseFs, path)
 	c, err := updateCatalog(fs, name)
 	if err != nil {
 		return nil, nil, err
