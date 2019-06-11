@@ -34,7 +34,7 @@ func TestEmptyCatalog(t *testing.T) {
 func TestEmptyCatalogAddRetrieve(t *testing.T) {
 	fs := afero.NewOsFs()
 	path := "test_data/test1.txt"
-	expectedItem, err := newItem(fs, path)
+	expectedItem, err := NewItem(fs, path)
 	th.Ok(t, err)
 	c := NewCatalog()
 	err = c.Add(*expectedItem)
@@ -69,7 +69,7 @@ func TestAddExisting(t *testing.T) {
 	fs := afero.NewOsFs()
 	path := "test_data/test1.txt"
 	c := NewCatalog()
-	item, _ := newItem(fs, path)
+	item, _ := NewItem(fs, path)
 	err := c.Add(*item)
 	th.Ok(t, err)
 	err = c.Add(*item)
@@ -82,7 +82,7 @@ func TestAddDelete(t *testing.T) {
 	fs := afero.NewOsFs()
 	path := "test_data/test1.txt"
 	c := NewCatalog()
-	expectedItem, err := newItem(fs, path)
+	expectedItem, err := NewItem(fs, path)
 	th.Ok(t, err)
 	err = c.Add(*expectedItem)
 	th.Ok(t, err)
@@ -120,7 +120,7 @@ func TestSetMissing(t *testing.T) {
 	fs := afero.NewOsFs()
 	path := "test_data/test1.txt"
 	c := NewCatalog()
-	expectedItem, _ := newItem(fs, path)
+	expectedItem, _ := NewItem(fs, path)
 	err := c.Set(*expectedItem)
 	th.Ok(t, err)
 	th.Equals(t, 1, c.Count())
@@ -157,7 +157,7 @@ func TestSetExisting(t *testing.T) {
 	fs := afero.NewOsFs()
 	path := "test_data/test1.txt"
 	c := NewCatalog()
-	item, _ := newItem(fs, path)
+	item, _ := NewItem(fs, path)
 	err := c.Add(*item)
 	th.Ok(t, err)
 

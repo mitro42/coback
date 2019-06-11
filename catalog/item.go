@@ -18,8 +18,8 @@ type Item struct {
 	Deleted          bool     `json:"deleted"`
 }
 
-// newItem creates an Item for the specified file
-func newItem(fs afero.Fs, path string) (*Item, error) {
+// NewItem creates an Item for the specified file
+func NewItem(fs afero.Fs, path string) (*Item, error) {
 	buf, err := afero.ReadFile(fs, path)
 	if err != nil {
 		return nil, errors.Wrap(err, "Cannot open file")

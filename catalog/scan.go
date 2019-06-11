@@ -84,7 +84,7 @@ func filterFiles(files <-chan string, filter FileFilter, wg *sync.WaitGroup) cha
 
 func catalogFile(fs afero.Fs, path string, out chan Item, countBar ProgressBar, sizeBar ProgressBar) {
 	start := time.Now()
-	item, err := newItem(fs, path)
+	item, err := NewItem(fs, path)
 	if err != nil {
 		log.Printf("Cannot read file '%v'", path)
 	} else {
@@ -98,7 +98,7 @@ func catalogFile(fs afero.Fs, path string, out chan Item, countBar ProgressBar, 
 // Returns true if the file at path exist and the content matches the catalog.
 func checkCatalogFile(fs afero.Fs, path string, c Catalog, countBar ProgressBar, sizeBar ProgressBar, ok chan<- string, changed chan<- string) error {
 	start := time.Now()
-	item, err := newItem(fs, path)
+	item, err := NewItem(fs, path)
 	if err != nil {
 		return errors.Errorf("Cannot read file '%v'", path)
 	}

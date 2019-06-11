@@ -10,7 +10,7 @@ import (
 )
 
 func TestMissingFile(t *testing.T) {
-	item, err := newItem(afero.NewOsFs(), "no_such_file")
+	item, err := NewItem(afero.NewOsFs(), "no_such_file")
 	th.NokPrefix(t, err, "Cannot open file")
 	th.Assert(t, item == nil, "Item expected to be nil")
 }
@@ -24,7 +24,7 @@ func TestCatalogItem(t *testing.T) {
 	ts, err := time.Parse(time.RFC3339Nano, strTs)
 	th.Ok(t, err)
 	fs.Chtimes(path, ts, ts)
-	item, err := newItem(fs, path)
+	item, err := NewItem(fs, path)
 	th.Ok(t, err)
 	th.Equals(t, path, item.Path)
 	th.Equals(t, int64(1160), item.Size)
@@ -41,7 +41,7 @@ func TestCatalogItem2(t *testing.T) {
 	ts, err := time.Parse(time.RFC3339Nano, strTs)
 	th.Ok(t, err)
 	fs.Chtimes(path, ts, ts)
-	item, err := newItem(fs, path)
+	item, err := NewItem(fs, path)
 	th.Ok(t, err)
 	th.Equals(t, path, item.Path)
 	th.Equals(t, int64(1304), item.Size)

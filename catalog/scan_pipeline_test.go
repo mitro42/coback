@@ -401,7 +401,7 @@ func TestReadCatalogItems(t *testing.T) {
 	outputPaths := make([]string, 0, 0)
 	for range inputFiles {
 		item := <-catalogItems
-		expectedItem, err := newItem(fs, item.Path)
+		expectedItem, err := NewItem(fs, item.Path)
 		th.Ok(t, err)
 		th.Equals(t, *expectedItem, item)
 		outputPaths = append(outputPaths, item.Path)
@@ -470,9 +470,9 @@ func TestSaveCatalog(t *testing.T) {
 	wg.Add(1)
 
 	go saveCatalog(fs, CatalogFileName, items, result, &wg)
-	item1, err := newItem(fs, "test1.txt")
+	item1, err := NewItem(fs, "test1.txt")
 	th.Ok(t, err)
-	item2, err := newItem(fs, "subfolder/file1.bin")
+	item2, err := NewItem(fs, "subfolder/file1.bin")
 	th.Ok(t, err)
 	items <- *item1
 	items <- *item2
