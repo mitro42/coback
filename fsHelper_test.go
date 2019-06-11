@@ -1,10 +1,13 @@
 package main
 
 import (
+	"crypto/rand"
+	"fmt"
 	"os"
 	"strconv"
 	"testing"
 
+	"github.com/mitro42/coback/catalog"
 	th "github.com/mitro42/testhelper"
 	"github.com/spf13/afero"
 )
@@ -46,9 +49,90 @@ func TestEnsureDirectoryExist(t *testing.T) {
 	err = ensureDirectoryExist(fs, "test1")
 	th.Ok(t, err)
 
+	// fail if path is a file
 	f, err := fs.Create("test2")
 	th.Ok(t, err)
 	f.Close()
 	err = ensureDirectoryExist(fs, "test2")
 	th.NokPrefix(t, err, "Path is a file")
+
+	fs = afero.NewReadOnlyFs(fs)
+	// fail cannot create directory
+	err = ensureDirectoryExist(fs, "test3")
+	th.NokPrefix(t, err, "Cannot create directory 'test3")
+
+}
+
+func TestCopyFile(t *testing.T) {
+	sourceFs := afero.NewMemMapFs()
+	destinationFs := afero.NewMemMapFs()
+
+	testFile := func(name string, content []byte) {
+		f, err := sourceFs.Create(name)
+		th.Ok(t, err)
+		f.Write(content)
+		f.Close()
+
+		sourceItem, err := catalog.NewItem(sourceFs, name)
+		th.Ok(t, err)
+		err = copyFile(sourceFs, *sourceItem, destinationFs)
+		th.Ok(t, err)
+		destinationItem, err := catalog.NewItem(destinationFs, name)
+		th.Ok(t, err)
+		th.Equals(t, sourceItem, destinationItem)
+	}
+
+	testFile("test1", []byte("some content"))
+	testFile("test2", []byte("some more content"))
+	th.Ok(t, sourceFs.MkdirAll("folder/structure/test", 0755))
+	buf := make([]byte, 1024*1024)
+	rand.Read(buf)
+	testFile("folder/structure/test/big_file", buf)
+}
+
+func TestCopyFileErrors(t *testing.T) {
+	sourceFs := afero.NewMemMapFs()
+	destinationFs := afero.NewMemMapFs()
+
+	// Source file doesn't exist
+	f, err := sourceFs.Create("test")
+	th.Ok(t, err)
+	f.Close()
+
+	sourceItem := catalog.Item{Path: "test/file"}
+	th.Ok(t, err)
+	err = copyFile(sourceFs, sourceItem, destinationFs)
+	th.NokPrefix(t, err, "Failed to copy file 'test/file'")
+
+	// Destination folder cannot be created
+	sourceFs = afero.NewMemMapFs()
+	th.Ok(t, sourceFs.Mkdir("test", 0755))
+
+	f, err = sourceFs.Create("test/file")
+	th.Ok(t, err)
+	f.Write([]byte("some stuff"))
+	f.Close()
+	f, err = destinationFs.Create("test")
+	th.Ok(t, err)
+	f.Close()
+	sourceItem2, err := catalog.NewItem(sourceFs, "test/file")
+
+	err = copyFile(sourceFs, *sourceItem2, destinationFs)
+	th.NokPrefix(t, err, "Failed to copy file 'test/file': Path is a file")
+
+	// Destination fs is read only
+	err = copyFile(sourceFs, *sourceItem2, afero.NewReadOnlyFs(afero.NewMemMapFs()))
+	fmt.Println(err)
+	th.NokPrefix(t, err, "Failed to copy file 'test/file': Cannot create directory")
+
+	// Destination folder is read only
+	destinationFs = afero.NewMemMapFs()
+	th.Ok(t, destinationFs.Mkdir("test", 0755))
+	err = copyFile(sourceFs, *sourceItem2, afero.NewReadOnlyFs(destinationFs))
+	th.NokPrefix(t, err, "Failed to copy file 'test/file': Cannot create destination file")
+
+	destinationFs = afero.NewMemMapFs()
+	sourceItem2.ModificationTime = "Not a valid timestamp"
+	err = copyFile(sourceFs, *sourceItem2, destinationFs)
+	th.NokPrefix(t, err, "Failed to copy file 'test/file': Cannot parse modification time of file 'test/file")
 }
