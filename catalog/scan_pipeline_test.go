@@ -36,38 +36,6 @@ func TestWalkEmptyFolder(t *testing.T) {
 	th.Equals(t, false, sizeFound)
 }
 
-func readStringChannel(files <-chan string) []string {
-	ret := make([]string, 0)
-	closingElementFound := false
-	for file := range files {
-		if file == "" {
-			closingElementFound = true
-			break
-		}
-		ret = append(ret, file)
-	}
-	if !closingElementFound {
-		panic("closing element not found")
-	}
-	return ret
-}
-
-func readInt64Channel(sizes <-chan int64) []int64 {
-	ret := make([]int64, 0)
-	closingElementFound := false
-	for size := range sizes {
-		if size == -1 {
-			closingElementFound = true
-			break
-		}
-		ret = append(ret, size)
-	}
-	if !closingElementFound {
-		panic("closing element not found")
-	}
-	return ret
-}
-
 func TestWalkFolderOneLevel(t *testing.T) {
 	fs := createSafeFs("test_data/subfolder")
 	var wg sync.WaitGroup
