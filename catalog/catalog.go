@@ -23,6 +23,7 @@ type Catalog interface {
 	DeletePath(path string)
 	Item(path string) (Item, error)
 	ItemsByChecksum(sum Checksum) ([]Item, error)
+	AllItems() <-chan Item
 	Count() int
 	DeletedCount() int
 	IsDeletedPath(path string) (bool, error)
@@ -185,6 +186,19 @@ func (c *catalog) FilterNew(other Catalog) Catalog {
 			ret.Add(item)
 		}
 	}
+	return ret
+}
+
+func (c *catalog) AllItems() <-chan Item {
+	ret := make(chan Item, 100)
+	go func() {
+		for _, item := range c.Items {
+			ret <- item
+		}
+		ret <- Item{}
+		close(ret)
+	}()
+
 	return ret
 }
 

@@ -260,3 +260,35 @@ func TestFilterNew(t *testing.T) {
 	expected = NewCatalog()
 	th.Equals(t, expected, newFolder.FilterNew(collection))
 }
+
+func TestAllItems(t *testing.T) {
+	a := Item{Path: "some/path/to/a", Md5Sum: "a", Size: 42}
+	b := Item{Path: "some/other/b", Md5Sum: "b", Size: 213456}
+	c := Item{Path: "path_to/c", Md5Sum: "c", Size: 987}
+
+	paths := func(items <-chan Item) <-chan string {
+		ret := make(chan string)
+		go func() {
+			for item := range items {
+				ret <- item.Path
+			}
+		}()
+		return ret
+	}
+
+	collection := NewCatalog()
+	actual := readStringChannel(paths(collection.AllItems()))
+	th.Equals(t, []string{}, actual)
+
+	collection.Add(a)
+	actual = readStringChannel(paths(collection.AllItems()))
+	th.Equals(t, []string{a.Path}, actual)
+
+	collection.Add(b)
+	actual = readStringChannel(paths(collection.AllItems()))
+	th.Equals(t, []string{a.Path, b.Path}, actual)
+
+	collection.Add(c)
+	actual = readStringChannel(paths(collection.AllItems()))
+	th.Equals(t, []string{a.Path, b.Path, c.Path}, actual)
+}
