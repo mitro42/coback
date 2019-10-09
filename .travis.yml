@@ -3,6 +3,9 @@ go:
   - "1.10.x"
   - "1.12.x"
 
+before_install:
+  - go get -t -v ./...
+
 script:
   - go test -race -coverprofile=coverage.txt -covermode=atomic
 
