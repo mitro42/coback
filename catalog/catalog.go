@@ -18,18 +18,35 @@ type Checksum string
 
 // Catalog stores information about the contents of a folder
 type Catalog interface {
+	// Add adds a new items to the Catalog
 	Add(item Item) error
+	// Set ensures that the item in the catalog with the given path contains the given data.
+	// If an item with the same path already exists it is replaced with the new item.
+	// Simply adds the item if the path it is not yet in the Catalog.
 	Set(item Item) error
+	// DeletePath marks the item with the given path as deleted. No error if the path doesn't exists in the Catalog
 	DeletePath(path string)
+	// Item returns the Item with the given path. Returns error if the path doesn't exist.
 	Item(path string) (Item, error)
+	// ItemsByChecksum returns the Items that have the given checksum. Returns error if the no such Item exist.
+	// As a copy of the same file can be stored more than once with different paths, a slice of Items is returned.
 	ItemsByChecksum(sum Checksum) ([]Item, error)
+	// AllItems returns a channel with all the items currently in the Catalog
 	AllItems() <-chan Item
+	// Count returns the number of items stored in the Catalog
 	Count() int
+	// DeletedCount returns the number of items stored in the Catalog which are marked as deleted
 	DeletedCount() int
+	// IsDeletedPath returns true if the item with the given path is marked as deleted. Returns error if the path doesn't exist.
 	IsDeletedPath(path string) (bool, error)
+	// IsDeletedChecksum returns true all the items with the given checksum are marked as deleted.
+	// Returns error if the path doesn't exist or some items are marked as deleted, but not all of them.
 	IsDeletedChecksum(sum Checksum) (bool, error)
+	// Write writes the Catalog as a file at the given path and file system
 	Write(fs afero.Fs, path string) error
+	// Clone creates a deep copy of the Catalog
 	Clone() Catalog
+	// FilterNew returns a catalog that contains all items that are present in this Catalog, but not in the other
 	FilterNew(other Catalog) Catalog
 }
 
@@ -177,8 +194,6 @@ func (c *catalog) Write(fs afero.Fs, path string) error {
 	return errors.Wrapf(err, "Cannot save catalog to file: '%v'", path)
 }
 
-// FilterNew compares the catalog to another catalog and returns
-// a new catalog that only contains files that are not present in the other
 func (c *catalog) FilterNew(other Catalog) Catalog {
 	ret := NewCatalog()
 	for _, item := range c.Items {
