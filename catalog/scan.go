@@ -53,11 +53,11 @@ func walkFolder(fs afero.Fs, root string, wg *sync.WaitGroup) (<-chan string, <-
 	go func() {
 		defer wg.Done()
 		afero.Walk(fs, root, func(path string, fi os.FileInfo, err error) error {
-				if !fi.IsDir() && fi.Name() != CatalogFileName {
-					files <- path
-					sizes <- fi.Size()
-				}
-				return nil
+			if !fi.IsDir() && fi.Name() != CatalogFileName {
+				files <- path
+				sizes <- fi.Size()
+			}
+			return nil
 		})
 		files <- ""
 		sizes <- -1
@@ -71,12 +71,12 @@ func filterFiles(files <-chan string, filter FileFilter, wg *sync.WaitGroup) cha
 	go func() {
 		defer wg.Done()
 		for file := range files {
-				if file == "" {
+			if file == "" {
 				break
-				} else if filter.Include(file) {
-					filtered <- file
-				}
+			} else if filter.Include(file) {
+				filtered <- file
 			}
+		}
 		filtered <- ""
 	}()
 	return filtered
@@ -139,12 +139,12 @@ func readCatalogItems(fs afero.Fs,
 		for i := 0; i < concurrency; i++ {
 			go func() {
 				for path := range paths {
-						if path == "" {
+					if path == "" {
 						paths <- "" // make one of the siblings stop
-							break
-						}
-						catalogFile(fs, path, out, countBar, sizeBar)
+						break
 					}
+					catalogFile(fs, path, out, countBar, sizeBar)
+				}
 				wg.Done()
 			}()
 		}
@@ -181,14 +181,14 @@ func checkExistingItems(fs afero.Fs,
 			go func() {
 				defer wg.Done()
 				for path := range paths {
-						if path == "" {
+					if path == "" {
 						paths <- "" // make one of the siblings stop
-							break
-						}
-						if err := checkCatalogFile(fs, path, c, countBar, sizeBar, ok, changed); err != nil {
-							log.Println(err)
-						}
+						break
 					}
+					if err := checkCatalogFile(fs, path, c, countBar, sizeBar, ok, changed); err != nil {
+						log.Println(err)
+					}
+				}
 			}()
 		}
 		wg.Wait()
@@ -207,17 +207,17 @@ func sumSizes(sizes <-chan int64, countBar ProgressBar, sizeBar ProgressBar, fil
 	total := int64(0)
 	count := int64(0)
 	for s := range sizes {
-			if s == -1 {
-				break
-			}
-			total += s
-			count++
-			sizeBar.SetTotal(total, false)
-			countBar.SetTotal(count, false)
+		if s == -1 {
+			break
 		}
+		total += s
+		count++
+		sizeBar.SetTotal(total, false)
+		countBar.SetTotal(count, false)
+	}
 	if fileCount != nil {
 		fileCount <- count
-}
+	}
 }
 
 func createProgressBars() (*mpb.Progress, ProgressBar, ProgressBar) {
@@ -255,21 +255,21 @@ func updateAndSaveCatalog(fs afero.Fs, c Catalog, catalogPath string, items <-ch
 	ret := c.Clone()
 	lastSave := time.Now()
 	for item := range items {
-			if (item == Item{}) {
+		if (item == Item{}) {
 			break
-			}
+		}
 		err := ret.Add(item)
-			if err != nil {
-				log.Printf("Cannot save catalog: %v", err)
-			}
-			if time.Since(lastSave).Seconds() > 5.0 {
-				lastSave = time.Now()
+		if err != nil {
+			log.Printf("Cannot save catalog: %v", err)
+		}
+		if time.Since(lastSave).Seconds() > 5.0 {
+			lastSave = time.Now()
 			err := ret.Write(fs, catalogPath)
-				if err != nil {
-					log.Printf("Failed to update catalog: %v", err)
-				}
+			if err != nil {
+				log.Printf("Failed to update catalog: %v", err)
 			}
 		}
+	}
 
 	err := ret.Write(fs, catalogPath)
 	if err != nil {
@@ -352,6 +352,46 @@ func ScanAdd(fs afero.Fs, c Catalog, cr CheckResult) Catalog {
 	return ret
 }
 
+// // Scan recursively scans the whole file system
+// func ResumeScan(fs afero.Fs, c Catalog) {
+// 	return ScanFolder(fs, ".")
+// }
+
+// QuickCheck scans a folder and compare its contents to the contents of the catalog.
+// The check only compares the file names, sizes, and modification times, and ignores
+// the content.
+// Returns true if the catalog is consistent with the file system,
+// and false if there is a mismatch
+func QuickCheck(fs afero.Fs, c Catalog) bool {
+	return true
+}
+
+//
+// func readAndCheckCatalogItems(fs afero.Fs, paths <-chan string, c Catalog, countBar ProgressBar, sizeBar ProgressBar) bool {
+// 	var wg sync.WaitGroup
+// 	const concurrency = 6
+// 	wg.Add(concurrency)
+// 	go func() {
+// 		defer close(out)
+// 		for i := 0; i < concurrency; i++ {
+// 			go func() {
+// 				for path := range paths {
+// 					if oldItem, ok := c.Item(path); !ok {
+//
+// 					}
+// 					catalogFile(fs, path, out, countBar, sizeBar)
+// 				}
+// 				wg.Done()
+// 			}()
+// 		}
+// 		wg.Wait()
+// 		sizeBar.SetTotal(sizeBar.Current(), true)
+// 		countBar.SetTotal(countBar.Current(), true)
+// 	}()
+//
+// 	return out
+// }
+
 // filterByCatalog separate the incoming files (typically contents of the file system)
 // to two channels based on whether they are present in the catalog or not.
 // If an file read from the files channel is in the catalog (only the path is checked, no metadata, no contents)
@@ -363,15 +403,15 @@ func filterByCatalog(files <-chan string, c Catalog, wg *sync.WaitGroup) (known 
 	go func() {
 		defer wg.Done()
 		for file := range files {
-				if file == "" {
-					known <- ""
-					unknown <- ""
+			if file == "" {
+				known <- ""
+				unknown <- ""
 				break
-				}
-				if _, err := c.Item(file); err == nil {
-					known <- file
-				} else {
-					unknown <- file
+			}
+			if _, err := c.Item(file); err == nil {
+				known <- file
+			} else {
+				unknown <- file
 			}
 		}
 	}()
@@ -405,10 +445,10 @@ func CheckFiltered(fs afero.Fs, c Catalog, filter FileFilter) CheckResult {
 	go sumSizes(sizes, countBar, sizeBar, nil, &wg)
 	ret := NewCheckResult()
 
-	collectFiles(okFiles, ret.Ok, &wg)
-	collectFiles(changedFiles, ret.Update, &wg)
-	collectFiles(unknownFiles, ret.Add, &wg)
-			wg.Wait()
+	go collectFiles(okFiles, ret.Ok, &wg)
+	go collectFiles(changedFiles, ret.Update, &wg)
+	go collectFiles(unknownFiles, ret.Add, &wg)
+	wg.Wait()
 
 	p.Wait()
 	// log.Printf("Check done, ok: %v, to update: %v, to add: %v", len(ret.Ok), len(ret.Update), len(ret.Add))
