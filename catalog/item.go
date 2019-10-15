@@ -15,7 +15,6 @@ type Item struct {
 	Size             int64    `json:"size"`
 	ModificationTime string   `json:"modification_time"`
 	Md5Sum           Checksum `json:"md5sum"`
-	Deleted          bool     `json:"deleted"`
 }
 
 // NewItem creates an Item for the specified file
@@ -37,6 +36,5 @@ func NewItem(fs afero.Fs, path string) (*Item, error) {
 		Size:             fi.Size(),
 		ModificationTime: fi.ModTime().Format(time.RFC3339Nano),
 		Md5Sum:           Checksum(hex.EncodeToString(hash.Sum(nil))),
-		Deleted:          false,
 	}, nil
 }

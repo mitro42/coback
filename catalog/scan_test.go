@@ -19,11 +19,7 @@ func TestEmptyFoldersCatalogIsEmpty(t *testing.T) {
 
 func checkFilesInCatalog(t *testing.T, c Catalog, path string, size int64, md5sum Checksum) {
 	t.Helper()
-	deleted, err := c.IsDeletedPath(path)
-	th.Ok(t, err)
-	th.Equals(t, false, deleted)
-	deleted, err = c.IsDeletedChecksum(md5sum)
-	th.Ok(t, err)
+	deleted := c.IsDeletedChecksum(md5sum)
 	th.Equals(t, false, deleted)
 
 	item1, err := c.Item(path)

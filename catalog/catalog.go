@@ -25,7 +25,7 @@ type Catalog interface {
 	// Simply adds the item if the path it is not yet in the Catalog.
 	Set(item Item) error
 	// DeletePath marks the item with the given path as deleted. No error if the path doesn't exists in the Catalog
-	DeletePath(path string)
+	DeletePath(path string) error
 	// Item returns the Item with the given path. Returns error if the path doesn't exist.
 	Item(path string) (Item, error)
 	// ItemsByChecksum returns the Items that have the given checksum. Returns error if the no such Item exist.
@@ -37,11 +37,9 @@ type Catalog interface {
 	Count() int
 	// DeletedCount returns the number of items stored in the Catalog which are marked as deleted
 	DeletedCount() int
-	// IsDeletedPath returns true if the item with the given path is marked as deleted. Returns error if the path doesn't exist.
-	IsDeletedPath(path string) (bool, error)
 	// IsDeletedChecksum returns true all the items with the given checksum are marked as deleted.
 	// Returns error if the path doesn't exist or some items are marked as deleted, but not all of them.
-	IsDeletedChecksum(sum Checksum) (bool, error)
+	IsDeletedChecksum(sum Checksum) bool
 	// Write writes the Catalog as a file at the given path and file system
 	Write(fs afero.Fs, path string) error
 	// Clone creates a deep copy of the Catalog
@@ -51,50 +49,55 @@ type Catalog interface {
 }
 
 type catalog struct {
-	State         catalogState `json:"state"`
-	Items         []Item       `json:"content"`
-	pathToIdx     map[string]int
-	checksumToIdx map[Checksum][]int
+	State            catalogState      `json:"state"`
+	Items            map[string]Item   `json:"content"`
+	DeletedChecksums map[Checksum]bool `json:"deleted_checksums"`
+	checksumToPaths  map[Checksum][]string
+}
+
+func newcatalog() *catalog {
+	return &catalog{
+		Items:            make(map[string]Item),
+		checksumToPaths:  make(map[Checksum][]string),
+		DeletedChecksums: make(map[Checksum]bool),
+	}
 }
 
 // NewCatalog creates a new empty Catalog
 func NewCatalog() Catalog {
-	return &catalog{
-		Items:         make([]Item, 0, 100),
-		pathToIdx:     make(map[string]int),
-		checksumToIdx: make(map[Checksum][]int),
-	}
+	return newcatalog()
 }
 
 func (c *catalog) Clone() Catalog {
-	clone := &catalog{
-		Items:         make([]Item, len(c.Items)),
-		pathToIdx:     make(map[string]int),
-		checksumToIdx: make(map[Checksum][]int),
+	clone := newcatalog()
+	for k, v := range c.Items {
+		clone.Items[k] = v
 	}
-	copy(clone.Items, c.Items)
-	for k, v := range c.pathToIdx {
-		clone.pathToIdx[k] = v
+	for k, v := range c.checksumToPaths {
+		clone.checksumToPaths[k] = v
 	}
-	for k, v := range c.checksumToIdx {
-		clone.checksumToIdx[k] = v
+	for k, v := range c.DeletedChecksums {
+		clone.DeletedChecksums[k] = v
 	}
 	return clone
 }
 
 func (c *catalog) Add(item Item) error {
-	if _, ok := c.pathToIdx[item.Path]; ok {
+	if _, ok := c.Items[item.Path]; ok {
 		return fmt.Errorf("File is already in the catalog: '%v'", item.Path)
 	}
-	c.Items = append(c.Items, item)
-	idx := len(c.Items) - 1
-	c.pathToIdx[item.Path] = idx
-	c.checksumToIdx[item.Md5Sum] = append(c.checksumToIdx[item.Md5Sum], idx)
+	if c.DeletedChecksums[item.Md5Sum] {
+		return fmt.Errorf("The hash of the file is stored as deleted: '%v'", item.Path)
+	}
+
+	c.Items[item.Path] = item
+	c.checksumToPaths[item.Md5Sum] = append(c.checksumToPaths[item.Md5Sum], item.Path)
+
 	return nil
 }
 
 // removeItem removes the first occurrence of a value from a slice
-func removeItem(slice []int, v int) []int {
+func removeItem(slice []string, v string) []string {
 	for idx, item := range slice {
 		if item == v {
 			return append(slice[:idx], slice[idx+1:]...)
@@ -103,89 +106,98 @@ func removeItem(slice []int, v int) []int {
 	return slice
 }
 
-func (c *catalog) Set(item Item) error {
-	if idx, ok := c.pathToIdx[item.Path]; ok {
-		origChecksum := c.Items[idx].Md5Sum
-		c.checksumToIdx[origChecksum] = removeItem(c.checksumToIdx[origChecksum], idx)
-		c.checksumToIdx[item.Md5Sum] = append(c.checksumToIdx[item.Md5Sum], idx)
-		c.Items[idx] = item
+func (c *catalog) Set(newItem Item) error {
+	if item, ok := c.Items[newItem.Path]; ok {
+		origChecksum := c.Items[item.Path].Md5Sum
+		c.checksumToPaths[origChecksum] = removeItem(c.checksumToPaths[origChecksum], item.Path)
+		c.checksumToPaths[newItem.Md5Sum] = append(c.checksumToPaths[newItem.Md5Sum], newItem.Path)
+		c.Items[item.Path] = newItem
 		return nil
 	}
-	return c.Add(item)
+	return c.Add(newItem)
 }
 
-func (c *catalog) DeletePath(path string) {
-	idx, ok := c.pathToIdx[path]
+func (c *catalog) DeletePath(path string) error {
+	item, ok := c.Items[path]
+	if !ok {
+		return nil
+	}
+	paths, ok := c.checksumToPaths[item.Md5Sum]
+	if !ok {
+		return errors.Errorf("Inconsistent catalog, cannot map checksum to path: '%s', '%s'", path, item.Md5Sum)
+	}
+	if len(paths) == 1 {
+		c.DeletedChecksums[item.Md5Sum] = true
+	}
+	delete(c.Items, path)
+	return nil
+}
+
+func (c *catalog) DeleteChecksum(sum Checksum) {
+	paths, ok := c.checksumToPaths[sum]
 	if ok {
-		c.Items[idx].Deleted = true
+		for _, p := range paths {
+			delete(c.Items, p)
+		}
+		c.DeletedChecksums[sum] = true
 	}
 }
 
 func (c *catalog) Item(path string) (Item, error) {
-	idx, ok := c.pathToIdx[path]
+	item, ok := c.Items[path]
 	if !ok {
 		return Item{}, errors.Errorf("No such file: %v", path)
 	}
-	return c.Items[idx], nil
+	return item, nil
 }
 
 func (c *catalog) Count() int {
-	return len(c.Items) - c.DeletedCount()
+	return len(c.Items)
 }
 
 func (c *catalog) DeletedCount() int {
-	count := 0
-	for _, item := range c.Items {
-		if item.Deleted {
-			count++
-		}
-	}
-	return count
+	return len(c.DeletedChecksums)
 }
 
 func (c *catalog) ItemsByChecksum(sum Checksum) ([]Item, error) {
-	indexes, ok := c.checksumToIdx[sum]
+	paths, ok := c.checksumToPaths[sum]
 	if !ok {
 		return []Item{}, errors.Errorf("No such file: %v", sum)
 	}
-	ret := make([]Item, 0, len(indexes))
-	for idx := range indexes {
-		ret = append(ret, c.Items[idx])
+	ret := make([]Item, 0, len(paths))
+	for _, path := range paths {
+		ret = append(ret, c.Items[path])
 	}
 	return ret, nil
 }
 
-func (c *catalog) areAllDeleted(indexes []int) (bool, error) {
-	switch len(indexes) {
-	case 0:
-		return false, errors.New("No indexes")
-	case 1:
-		return c.Items[indexes[0]].Deleted, nil
-	default:
-		for idx := range indexes {
-			if c.Items[idx].Deleted != c.Items[0].Deleted {
-				return false, errors.Errorf("Some items are deleted, some are not! Indexes: %v", indexes)
-			}
-		}
-		return c.Items[indexes[0]].Deleted, nil
-	}
-}
+// func (c *catalog) areAllDeleted(indexes []int) (bool, error) {
+// 	switch len(indexes) {
+// 	case 0:
+// 		return false, errors.New("No indexes")
+// 	case 1:
+// 		return c.Items[indexes[0]].Deleted, nil
+// 	default:
+// 		for idx := range indexes {
+// 			if c.Items[idx].Deleted != c.Items[0].Deleted {
+// 				return false, errors.Errorf("Some items are deleted, some are not! Indexes: %v", indexes)
+// 			}
+// 		}
+// 		return c.Items[indexes[0]].Deleted, nil
+// 	}
+// }
 
-func (c *catalog) IsDeletedPath(path string) (bool, error) {
-	idx, ok := c.pathToIdx[path]
-	if !ok {
-		return false, errors.Errorf("No such file: %v", path)
-	}
-	return c.Items[idx].Deleted, nil
-}
+// func (c *catalog) IsDeletedPath(path string) (bool, error) {
+// 	deleted, ok := c.pathToIdx[path]
+// 	if !ok {
+// 		return false, errors.Errorf("No such file: %v", path)
+// 	}
+// 	return c.Items[idx].Deleted, nil
+// }
 
-func (c *catalog) IsDeletedChecksum(sum Checksum) (bool, error) {
-	indexes, ok := c.checksumToIdx[sum]
-	if !ok {
-		return false, errors.Errorf("No such file: %v", sum)
-	}
-
-	return c.areAllDeleted(indexes)
+func (c *catalog) IsDeletedChecksum(sum Checksum) bool {
+	deleted, ok := c.DeletedChecksums[sum]
+	return ok && deleted
 }
 
 func (c *catalog) Write(fs afero.Fs, path string) error {
@@ -223,19 +235,14 @@ func Read(fs afero.Fs, path string) (Catalog, error) {
 	if err != nil {
 		return nil, errors.Wrapf(err, "Cannot read catalog: '%v'", path)
 	}
-	c := &catalog{
-		Items:         make([]Item, 0),
-		pathToIdx:     make(map[string]int),
-		checksumToIdx: make(map[Checksum][]int),
-	}
+	c := newcatalog()
 	err = json.Unmarshal(buf, c)
 	if err != nil {
 		return nil, errors.Wrapf(err, "Cannot parse catalog json: '%v'", path)
 	}
 
-	for idx, item := range c.Items {
-		c.pathToIdx[item.Path] = idx
-		c.checksumToIdx[item.Md5Sum] = append(c.checksumToIdx[item.Md5Sum], idx)
+	for _, item := range c.Items {
+		c.checksumToPaths[item.Md5Sum] = append(c.checksumToPaths[item.Md5Sum], item.Path)
 	}
 	return c, nil
 }

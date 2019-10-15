@@ -11,18 +11,18 @@ import (
 )
 
 func TestRemoveItem(t *testing.T) {
-	th.Equals(t, []int{}, removeItem([]int{}, 42))
-	th.Equals(t, []int{}, removeItem([]int{42}, 42))
-	th.Equals(t, []int{4}, removeItem([]int{4}, 42))
-	th.Equals(t, []int{4}, removeItem([]int{0, 4}, 0))
-	th.Equals(t, []int{4}, removeItem([]int{4, 0}, 0))
-	th.Equals(t, []int{2, 3, 4}, removeItem([]int{88, 2, 3, 4}, 88))
-	th.Equals(t, []int{2, 3, 4}, removeItem([]int{2, 88, 3, 4}, 88))
-	th.Equals(t, []int{2, 3, 4}, removeItem([]int{2, 3, 88, 4}, 88))
-	th.Equals(t, []int{2, 3, 4}, removeItem([]int{2, 3, 4, 88}, 88))
-	th.Equals(t, []int{2, 2}, removeItem([]int{2, 2, 2}, 2))
-	th.Equals(t, []int{2, 2}, removeItem([]int{2, 3, 2}, 3))
-	th.Equals(t, []int{3, 2}, removeItem([]int{2, 3, 2}, 2))
+	th.Equals(t, []string{}, removeItem([]string{}, "42"))
+	th.Equals(t, []string{}, removeItem([]string{"42"}, "42"))
+	th.Equals(t, []string{"4"}, removeItem([]string{"4"}, "42"))
+	th.Equals(t, []string{"4"}, removeItem([]string{"0", "4"}, "0"))
+	th.Equals(t, []string{"4"}, removeItem([]string{"4", "0"}, "0"))
+	th.Equals(t, []string{"2", "3", "4"}, removeItem([]string{"88", "2", "3", "4"}, "88"))
+	th.Equals(t, []string{"2", "3", "4"}, removeItem([]string{"2", "88", "3", "4"}, "88"))
+	th.Equals(t, []string{"2", "3", "4"}, removeItem([]string{"2", "3", "88", "4"}, "88"))
+	th.Equals(t, []string{"2", "3", "4"}, removeItem([]string{"2", "3", "4", "88"}, "88"))
+	th.Equals(t, []string{"2", "2"}, removeItem([]string{"2", "2", "2"}, "2"))
+	th.Equals(t, []string{"2", "2"}, removeItem([]string{"2", "3", "2"}, "3"))
+	th.Equals(t, []string{"3", "2"}, removeItem([]string{"2", "3", "2"}, "2"))
 }
 
 func TestEmptyCatalog(t *testing.T) {
@@ -40,12 +40,7 @@ func TestEmptyCatalogAddRetrieve(t *testing.T) {
 	err = c.Add(*expectedItem)
 	th.Ok(t, err)
 
-	deleted, err := c.IsDeletedPath(path)
-	th.Ok(t, err)
-	th.Equals(t, false, deleted)
-
-	deleted, err = c.IsDeletedChecksum("b3cd1cf6179bca32fd5d76473b129117")
-	th.Ok(t, err)
+	deleted := c.IsDeletedChecksum("b3cd1cf6179bca32fd5d76473b129117")
 	th.Equals(t, false, deleted)
 
 	item, err := c.Item(path)
@@ -92,12 +87,7 @@ func TestAddDelete(t *testing.T) {
 	th.Equals(t, 1, c.DeletedCount())
 	th.Equals(t, 0, c.Count())
 
-	deleted, err := c.IsDeletedPath(path)
-	th.Ok(t, err)
-	th.Equals(t, true, deleted)
-
-	deleted, err = c.IsDeletedChecksum("b3cd1cf6179bca32fd5d76473b129117")
-	th.Ok(t, err)
+	deleted := c.IsDeletedChecksum("b3cd1cf6179bca32fd5d76473b129117")
 	th.Equals(t, true, deleted)
 
 	path2 := "test_data/test2.txt"
@@ -108,12 +98,6 @@ func TestAddDelete(t *testing.T) {
 	items, err := c.ItemsByChecksum(checksum2)
 	th.Nok(t, err, fmt.Sprintf("No such file: %v", checksum2))
 	th.Equals(t, []Item{}, items)
-
-	_, err = c.IsDeletedPath(path2)
-	th.NokPrefix(t, err, "No such file: "+path2)
-
-	_, err = c.IsDeletedChecksum(checksum2)
-	th.NokPrefix(t, err, fmt.Sprintf("No such file: %v", checksum2))
 }
 
 func TestSetMissing(t *testing.T) {
@@ -129,12 +113,7 @@ func TestSetMissing(t *testing.T) {
 	th.Equals(t, 1, c.DeletedCount())
 	th.Equals(t, 0, c.Count())
 
-	deleted, err := c.IsDeletedPath(path)
-	th.Ok(t, err)
-	th.Equals(t, true, deleted)
-
-	deleted, err = c.IsDeletedChecksum("b3cd1cf6179bca32fd5d76473b129117")
-	th.Ok(t, err)
+	deleted := c.IsDeletedChecksum("b3cd1cf6179bca32fd5d76473b129117")
 	th.Equals(t, true, deleted)
 
 	path2 := "test_data/test2.txt"
@@ -145,12 +124,6 @@ func TestSetMissing(t *testing.T) {
 	items, err := c.ItemsByChecksum(checksum2)
 	th.Nok(t, err, fmt.Sprintf("No such file: %v", checksum2))
 	th.Equals(t, []Item{}, items)
-
-	_, err = c.IsDeletedPath(path2)
-	th.NokPrefix(t, err, "No such file: "+path2)
-
-	_, err = c.IsDeletedChecksum(checksum2)
-	th.NokPrefix(t, err, fmt.Sprintf("No such file: %v", checksum2))
 }
 
 func TestSetExisting(t *testing.T) {
@@ -231,10 +204,10 @@ func TestClone(t *testing.T) {
 	th.Assert(t, &c != &clone, "clone should be a different object")
 	th.Equals(t, c.Items, clone.Items)
 	th.Assert(t, &c.Items != &clone.Items, "clone.Items should be a different object")
-	th.Equals(t, c.pathToIdx, clone.pathToIdx)
-	th.Assert(t, &c.pathToIdx != &clone.pathToIdx, "clone.pathToIdx should be a different object")
-	th.Equals(t, c.checksumToIdx, clone.checksumToIdx)
-	th.Assert(t, &c.checksumToIdx != &clone.checksumToIdx, "clone.checksumToIdx should be a different object")
+	th.Equals(t, c.checksumToPaths, clone.checksumToPaths)
+	th.Assert(t, &c.checksumToPaths != &clone.checksumToPaths, "clone.pathToIdx should be a different object")
+	th.Equals(t, c.DeletedChecksums, clone.DeletedChecksums)
+	th.Assert(t, &c.DeletedChecksums != &clone.DeletedChecksums, "clone.checksumToIdx should be a different object")
 }
 
 func TestFilterNew(t *testing.T) {
