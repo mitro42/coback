@@ -171,30 +171,6 @@ func (c *catalog) ItemsByChecksum(sum Checksum) ([]Item, error) {
 	return ret, nil
 }
 
-// func (c *catalog) areAllDeleted(indexes []int) (bool, error) {
-// 	switch len(indexes) {
-// 	case 0:
-// 		return false, errors.New("No indexes")
-// 	case 1:
-// 		return c.Items[indexes[0]].Deleted, nil
-// 	default:
-// 		for idx := range indexes {
-// 			if c.Items[idx].Deleted != c.Items[0].Deleted {
-// 				return false, errors.Errorf("Some items are deleted, some are not! Indexes: %v", indexes)
-// 			}
-// 		}
-// 		return c.Items[indexes[0]].Deleted, nil
-// 	}
-// }
-
-// func (c *catalog) IsDeletedPath(path string) (bool, error) {
-// 	deleted, ok := c.pathToIdx[path]
-// 	if !ok {
-// 		return false, errors.Errorf("No such file: %v", path)
-// 	}
-// 	return c.Items[idx].Deleted, nil
-// }
-
 func (c *catalog) IsDeletedChecksum(sum Checksum) bool {
 	deleted, ok := c.DeletedChecksums[sum]
 	return ok && deleted
