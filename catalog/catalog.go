@@ -48,6 +48,7 @@ type Catalog interface {
 	// Clone creates a deep copy of the Catalog
 	Clone() Catalog
 	// FilterNew returns a catalog that contains all items that are present in this Catalog, but not in the other
+	// (either as regulas items or deleted hashes)
 	FilterNew(other Catalog) Catalog
 }
 
@@ -183,9 +184,13 @@ func (c *catalog) Write(fs afero.Fs, path string) error {
 func (c *catalog) FilterNew(other Catalog) Catalog {
 	ret := NewCatalog()
 	for _, item := range c.Items {
-		if _, err := other.ItemsByChecksum(item.Md5Sum); err != nil {
-			ret.Add(item)
+		if other.IsDeletedChecksum(item.Md5Sum) {
+			continue
 		}
+		if _, err := other.ItemsByChecksum(item.Md5Sum); err == nil {
+			continue
+		}
+		ret.Add(item)
 	}
 	return ret
 }

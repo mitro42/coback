@@ -321,6 +321,30 @@ func TestFilterNew(t *testing.T) {
 	th.Equals(t, expected, newFolder.FilterNew(collection))
 }
 
+func TestFilterNewWithDeleted(t *testing.T) {
+	a := Item{Path: "some/path/to/a", Md5Sum: "a", Size: 42}
+	b := Item{Path: "some/other/b", Md5Sum: "b", Size: 213456}
+	c := Item{Path: "path_to/c", Md5Sum: "c", Size: 987}
+	collection := NewCatalog()
+	newFolder := NewCatalog()
+
+	collection.Add(a)
+	collection.DeleteChecksum(b.Md5Sum)
+	expected := NewCatalog()
+	th.Equals(t, expected, newFolder.FilterNew(collection))
+
+	newFolder.Add(b)
+	th.Equals(t, expected, newFolder.FilterNew(collection))
+
+	newFolder.Add(c)
+	expected.Add(c)
+	th.Equals(t, expected, newFolder.FilterNew(collection))
+
+	collection.Add(c)
+	expected = NewCatalog()
+	th.Equals(t, expected, newFolder.FilterNew(collection))
+}
+
 func TestAllItems(t *testing.T) {
 	a := Item{Path: "some/path/to/a", Md5Sum: "a", Size: 42}
 	b := Item{Path: "some/other/b", Md5Sum: "b", Size: 213456}
