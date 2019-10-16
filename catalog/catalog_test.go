@@ -346,9 +346,9 @@ func TestAllItems(t *testing.T) {
 
 	collection.Add(b)
 	actual = readStringChannel(paths(collection.AllItems()))
-	th.Equals(t, []string{a.Path, b.Path}, actual)
+	th.Equals(t, []string{b.Path, a.Path}, actual)
 
 	collection.Add(c)
 	actual = readStringChannel(paths(collection.AllItems()))
-	th.Equals(t, []string{a.Path, b.Path, c.Path}, actual)
+	th.Equals(t, []string{c.Path, b.Path, a.Path}, actual)
 }

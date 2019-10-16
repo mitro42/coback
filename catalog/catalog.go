@@ -3,6 +3,7 @@ package catalog
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/afero"
@@ -31,7 +32,7 @@ type Catalog interface {
 	// ItemsByChecksum returns the Items that have the given checksum. Returns error if the no such Item exist.
 	// As a copy of the same file can be stored more than once with different paths, a slice of Items is returned.
 	ItemsByChecksum(sum Checksum) ([]Item, error)
-	// AllItems returns a channel with all the items currently in the Catalog
+	// AllItems returns a channel with all the items currently in the Catalog in alphabetical order of the path
 	AllItems() <-chan Item
 	// Count returns the number of items stored in the Catalog
 	Count() int
@@ -192,11 +193,25 @@ func (c *catalog) FilterNew(other Catalog) Catalog {
 func (c *catalog) AllItems() <-chan Item {
 	ret := make(chan Item, 100)
 	go func() {
-		for _, item := range c.Items {
-			ret <- item
+		defer func() {
+			ret <- Item{}
+			close(ret)
+		}()
+
+		if len(c.Items) == 0 {
+			return
 		}
-		ret <- Item{}
-		close(ret)
+		keys := make([]string, 0, len(c.Items))
+		for _, item := range c.Items {
+			keys = append(keys, item.Path)
+		}
+
+		sort.Strings(keys)
+
+		for _, k := range keys {
+			ret <- c.Items[k]
+		}
+
 	}()
 
 	return ret
