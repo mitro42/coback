@@ -77,6 +77,10 @@ func TestAddDelete(t *testing.T) {
 	fs := afero.NewOsFs()
 	path := "test_data/test1.txt"
 	c := NewCatalog()
+	c.DeletePath(path)
+	th.Equals(t, 0, c.Count())
+	th.Equals(t, 0, c.DeletedCount())
+
 	expectedItem, err := NewItem(fs, path)
 	th.Ok(t, err)
 	err = c.Add(*expectedItem)
@@ -98,6 +102,88 @@ func TestAddDelete(t *testing.T) {
 	items, err := c.ItemsByChecksum(checksum2)
 	th.Nok(t, err, fmt.Sprintf("No such file: %v", checksum2))
 	th.Equals(t, []Item{}, items)
+}
+
+func TestDeleteChecksum(t *testing.T) {
+	fs := afero.NewOsFs()
+	const sum1 = "12345"
+	c := NewCatalog()
+
+	c.DeleteChecksum(sum1)
+	th.Equals(t, true, c.IsDeletedChecksum(sum1))
+	th.Equals(t, 1, c.DeletedCount())
+
+	path := "test_data/test1.txt"
+	item, err := NewItem(fs, path)
+	th.Ok(t, err)
+	err = c.Add(*item)
+	sum2 := item.Md5Sum
+	th.Ok(t, err)
+	th.Equals(t, 1, c.Count())
+	th.Equals(t, 1, c.DeletedCount())
+	th.Equals(t, false, c.IsDeletedChecksum(sum2))
+
+	c.DeleteChecksum(sum2)
+	storedItem, err := c.Item(path)
+	th.NokPrefix(t, err, "No such file")
+	th.Equals(t, Item{}, storedItem)
+	th.Equals(t, 0, c.Count())
+	th.Equals(t, 2, c.DeletedCount())
+	th.Equals(t, true, c.IsDeletedChecksum(sum2))
+}
+
+func TestDeletePathWithDuplicatedChecksum(t *testing.T) {
+	fs := afero.NewOsFs()
+	c := NewCatalog()
+
+	path1 := "test_data/test1.txt"
+	item1, err := NewItem(fs, path1)
+	th.Ok(t, err)
+	path2 := "test_data/test2.txt"
+	item2, err := NewItem(fs, path2)
+	item2.Md5Sum = item1.Md5Sum
+	th.Ok(t, err)
+	err = c.Add(*item1)
+	th.Ok(t, err)
+	err = c.Add(*item2)
+	th.Ok(t, err)
+	th.Equals(t, 2, c.Count())
+	th.Equals(t, 0, c.DeletedCount())
+	th.Equals(t, false, c.IsDeletedChecksum(item1.Md5Sum))
+
+	c.DeletePath(item1.Path)
+	storedItem, err := c.Item(item1.Path)
+	th.NokPrefix(t, err, "No such file")
+	th.Equals(t, Item{}, storedItem)
+	storedItem, err = c.Item(item2.Path)
+	th.Ok(t, err)
+	th.Equals(t, *item2, storedItem)
+
+	c.DeletePath(item2.Path)
+	th.Equals(t, 0, c.Count())
+	th.Equals(t, 1, c.DeletedCount())
+	th.Equals(t, true, c.IsDeletedChecksum(item1.Md5Sum))
+}
+
+func TestAddFileWithDeletedChecksum(t *testing.T) {
+	fs := afero.NewOsFs()
+	c := NewCatalog()
+
+	path := "test_data/test1.txt"
+	item, err := NewItem(fs, path)
+	th.Ok(t, err)
+
+	c.DeleteChecksum(item.Md5Sum)
+	th.Equals(t, 0, c.Count())
+	th.Equals(t, 1, c.DeletedCount())
+	th.Equals(t, true, c.IsDeletedChecksum(item.Md5Sum))
+
+	err = c.Add(*item)
+	th.Ok(t, err)
+	th.Equals(t, 1, c.Count())
+	th.Equals(t, 0, c.DeletedCount())
+	th.Equals(t, false, c.IsDeletedChecksum(item.Md5Sum))
+
 }
 
 func TestSetMissing(t *testing.T) {
@@ -199,6 +285,7 @@ func TestClone(t *testing.T) {
 	path := "test_data"
 	fs := createSafeFs(filepath.Join(basePath, path))
 	c := Scan(fs).(*catalog)
+	c.DeleteChecksum("1234")
 	clone := c.Clone().(*catalog)
 	th.Equals(t, c, clone)
 	th.Assert(t, &c != &clone, "clone should be a different object")

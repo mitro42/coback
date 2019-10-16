@@ -24,8 +24,8 @@ type Catalog interface {
 	// If an item with the same path already exists it is replaced with the new item.
 	// Simply adds the item if the path it is not yet in the Catalog.
 	Set(item Item) error
-	// DeletePath marks the item with the given path as deleted. No error if the path doesn't exists in the Catalog
-	DeletePath(path string) error
+	// DeletePath removes the path from the Catalog. If there are no other items stored with the same hash, the hash is stored as deleted
+	DeletePath(path string)
 	// Item returns the Item with the given path. Returns error if the path doesn't exist.
 	Item(path string) (Item, error)
 	// ItemsByChecksum returns the Items that have the given checksum. Returns error if the no such Item exist.
@@ -37,6 +37,8 @@ type Catalog interface {
 	Count() int
 	// DeletedCount returns the number of items stored in the Catalog which are marked as deleted
 	DeletedCount() int
+	// DeleteChecksum stores the checksum as deleted and removes all items from the Catalog that have the given checksum (if any)
+	DeleteChecksum(sum Checksum)
 	// IsDeletedChecksum returns true all the items with the given checksum are marked as deleted.
 	// Returns error if the path doesn't exist or some items are marked as deleted, but not all of them.
 	IsDeletedChecksum(sum Checksum) bool
@@ -86,10 +88,8 @@ func (c *catalog) Add(item Item) error {
 	if _, ok := c.Items[item.Path]; ok {
 		return fmt.Errorf("File is already in the catalog: '%v'", item.Path)
 	}
-	if c.DeletedChecksums[item.Md5Sum] {
-		return fmt.Errorf("The hash of the file is stored as deleted: '%v'", item.Path)
-	}
 
+	delete(c.DeletedChecksums, item.Md5Sum)
 	c.Items[item.Path] = item
 	c.checksumToPaths[item.Md5Sum] = append(c.checksumToPaths[item.Md5Sum], item.Path)
 
@@ -117,20 +117,17 @@ func (c *catalog) Set(newItem Item) error {
 	return c.Add(newItem)
 }
 
-func (c *catalog) DeletePath(path string) error {
+func (c *catalog) DeletePath(path string) {
 	item, ok := c.Items[path]
 	if !ok {
-		return nil
+		return
 	}
-	paths, ok := c.checksumToPaths[item.Md5Sum]
-	if !ok {
-		return errors.Errorf("Inconsistent catalog, cannot map checksum to path: '%s', '%s'", path, item.Md5Sum)
-	}
+	paths, _ := c.checksumToPaths[item.Md5Sum]
 	if len(paths) == 1 {
 		c.DeletedChecksums[item.Md5Sum] = true
 	}
+	c.checksumToPaths[item.Md5Sum] = removeItem(c.checksumToPaths[item.Md5Sum], item.Path)
 	delete(c.Items, path)
-	return nil
 }
 
 func (c *catalog) DeleteChecksum(sum Checksum) {
@@ -139,8 +136,8 @@ func (c *catalog) DeleteChecksum(sum Checksum) {
 		for _, p := range paths {
 			delete(c.Items, p)
 		}
-		c.DeletedChecksums[sum] = true
 	}
+	c.DeletedChecksums[sum] = true
 }
 
 func (c *catalog) Item(path string) (Item, error) {
