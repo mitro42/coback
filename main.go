@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/mitro42/coback/catalog"
+	fsh "github.com/mitro42/coback/fshelper"
 	"github.com/spf13/afero"
 )
 
@@ -51,7 +52,7 @@ func readAndDiffCatalog(fs afero.Fs, name string) (catalog.Catalog, catalog.File
 // initializeFolder prepares a folder to be used by CoBack.
 // Creates the folder if necessary and returns an afero.Fs which roots at the specified folder.
 func initializeFolder(baseFs afero.Fs, path string, name string) (afero.Fs, error) {
-	err := ensureDirectoryExist(baseFs, path)
+	err := fsh.EnsureDirectoryExist(baseFs, path)
 	if err != nil {
 		return nil, err
 	}
@@ -99,11 +100,11 @@ func syncCatalogWithCollectionFolder(fs afero.Fs) (catalog.Catalog, error) {
 // in the items channel from the import FS to this new folder in the staging FS.
 func stageFiles(importFs afero.Fs, items <-chan catalog.Item, stagingFs afero.Fs) error {
 	fmt.Println("***************** Copying files to staging folder *****************")
-	targetFolder := nextUnusedFolder(stagingFs)
+	targetFolder := fsh.NextUnusedFolder(stagingFs)
 	targetFs := afero.NewBasePathFs(stagingFs, targetFolder)
 	for item := range items {
 		fmt.Println(item.Path)
-		err := copyFile(importFs, item, targetFs)
+		err := fsh.CopyFile(importFs, item, targetFs)
 		if err != nil {
 			return err
 		}

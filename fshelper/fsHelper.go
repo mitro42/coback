@@ -1,4 +1,4 @@
-package main
+package fshelper
 
 import (
 	"fmt"
@@ -13,9 +13,9 @@ import (
 	"github.com/spf13/afero"
 )
 
-// ensureDirectoryExist makes sure that the path it gets is a directory.
+// EnsureDirectoryExist makes sure that the path it gets is a directory.
 // Returns an error if the path is a file or if it doesn't exist and cannot be created.
-func ensureDirectoryExist(fs afero.Fs, path string) error {
+func EnsureDirectoryExist(fs afero.Fs, path string) error {
 	if path == "." {
 		return nil
 	}
@@ -41,7 +41,7 @@ func copyFileContent(sourceFs afero.Fs, sourcePath string, destinationFs afero.F
 		return 0, err
 	}
 
-	err = ensureDirectoryExist(destinationFs, path.Dir(destinationPath))
+	err = EnsureDirectoryExist(destinationFs, path.Dir(destinationPath))
 	if err != nil {
 		return 0, err
 	}
@@ -62,9 +62,9 @@ func setFileAttributes(fs afero.Fs, item catalog.Item) error {
 	return nil
 }
 
-// copyFile copies a file described in a catalog.Item between two file systems.
+// CopyFile copies a file described in a catalog.Item between two file systems.
 // The access and modification time stamps are set to the time specified in the item struct.
-func copyFile(sourceFs afero.Fs, item catalog.Item, destinationFs afero.Fs) error {
+func CopyFile(sourceFs afero.Fs, item catalog.Item, destinationFs afero.Fs) error {
 	size, err := copyFileContent(sourceFs, item.Path, destinationFs, item.Path)
 	if size != item.Size || err != nil {
 		return errors.Wrapf(err, "Failed to copy file '%v'", item.Path)
@@ -74,9 +74,9 @@ func copyFile(sourceFs afero.Fs, item catalog.Item, destinationFs afero.Fs) erro
 	return errors.Wrapf(err, "Failed to copy file '%v'", item.Path)
 }
 
-// returns a smallest positive integer as a string that can be used as the name of a new folder
+// NextUnusedFolder returns a smallest positive integer as a string that can be used as the name of a new folder
 // in the root of the FS
-func nextUnusedFolder(fs afero.Fs) string {
+func NextUnusedFolder(fs afero.Fs) string {
 	nextFolder := 0
 	for {
 		nextFolder++
