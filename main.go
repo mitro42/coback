@@ -36,25 +36,51 @@ func updateCatalog(fs afero.Fs, name string) (catalog.Catalog, error) {
 }
 
 // initializeFolder prepares a folder to be used by CoBack.
-// If the folder doesn't exist the function creates it and creates an empty catalog in it.
-// If the folder exists but there's no catalog in it, it performs a full scan.
-// If there is a catalog already in the folder, the function checks the contents and updates the catalog
-// as necessary. In any case when the function returns without an error the folder will exist
-// and will have an up to date catalog in it.
-func initializeFolder(path string, name string) (afero.Fs, catalog.Catalog, error) {
-	fmt.Printf("***************** Processing %v folder ***************\n", name)
+// Creates the folder if necessary and returns an afero.Fs which roots at the specified folder.
+func initializeFolder(path string, name string) (afero.Fs, error) {
 	baseFs := afero.NewOsFs()
 	err := ensureDirectoryExist(baseFs, path)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	fs := afero.NewBasePathFs(baseFs, path)
-	c, err := updateCatalog(fs, name)
+	return fs, nil
+}
+
+// syncCatalogWithImportFolder makes sure that the catalog in the folder is in sync with the file system
+// The fs parameter is treated as the root of the import folder.
+func syncCatalogWithImportFolder(fs afero.Fs) (catalog.Catalog, error) {
+	fmt.Println("***************** Processing import folder ***************")
+	c, err := updateCatalog(fs, "import")
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	return fs, c, nil
+	return c, nil
+}
+
+// syncCatalogWithStagingFolder makes sure that the catalog in the folder is in sync with the file system
+// The fs parameter is treated as the root of the staging folder.
+func syncCatalogWithStagingFolder(fs afero.Fs) (catalog.Catalog, error) {
+	fmt.Println("***************** Processing staging folder ***************")
+	c, err := updateCatalog(fs, "staging")
+	if err != nil {
+		return nil, err
+	}
+
+	return c, nil
+}
+
+// syncCatalogWithCollectionFolder makes sure that the catalog in the folder is in sync with the file system
+// The fs parameter is treated as the root of the Collection folder.
+func syncCatalogWithCollectionFolder(fs afero.Fs) (catalog.Catalog, error) {
+	fmt.Println("***************** Processing collection folder ***************")
+	c, err := updateCatalog(fs, "collection")
+	if err != nil {
+		return nil, err
+	}
+
+	return c, nil
 }
 
 // stageFiles creates a new numbered folder in the staging folder and copies all files
@@ -79,17 +105,34 @@ func main() {
 		os.Exit(-1)
 	}
 
-	importFs, importCatalog, err := initializeFolder(os.Args[1], "Import")
+	importFs, err := initializeFolder(os.Args[1], "Import")
 	if err != nil {
 		fmt.Printf("Cannot initialize folder: %v\n", err)
 		os.Exit(-2)
 	}
-	stagingFs, stagingCatalog, err := initializeFolder(os.Args[2], "Staging")
+	importCatalog, err := syncCatalogWithImportFolder(importFs)
 	if err != nil {
 		fmt.Printf("Cannot initialize folder: %v\n", err)
 		os.Exit(-2)
 	}
-	_, collectionCatalog, err := initializeFolder(os.Args[3], "Collection")
+
+	stagingFs, err := initializeFolder(os.Args[2], "Staging")
+	if err != nil {
+		fmt.Printf("Cannot initialize folder: %v\n", err)
+		os.Exit(-2)
+	}
+	stagingCatalog, err := syncCatalogWithStagingFolder(stagingFs)
+	if err != nil {
+		fmt.Printf("Cannot initialize folder: %v\n", err)
+		os.Exit(-2)
+	}
+
+	collectionFs, err := initializeFolder(os.Args[3], "Collection")
+	if err != nil {
+		fmt.Printf("Cannot initialize folder: %v\n", err)
+		os.Exit(-2)
+	}
+	collectionCatalog, err := syncCatalogWithCollectionFolder(collectionFs)
 	if err != nil {
 		fmt.Printf("Cannot initialize folder: %v\n", err)
 		os.Exit(-2)
@@ -101,7 +144,4 @@ func main() {
 	if err = stageFiles(importFs, notInStaging.AllItems(), stagingFs); err != nil {
 		fmt.Printf("Failed to copy files: %v\n", err)
 	}
-	fmt.Println(importCatalog.Count())
-	fmt.Println(stagingCatalog.Count())
-	fmt.Println(collectionCatalog.Count())
 }
