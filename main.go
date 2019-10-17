@@ -11,28 +11,41 @@ import (
 // updateCatalog reads a catalog file in the base of the FS, checks it against the contents of the FS
 // and updates it as necessary. The returned Catalog is always consistent with the FS.
 // The result is undefined if the FS is changed by other processes.
-func updateCatalog(fs afero.Fs, name string) (catalog.Catalog, error) {
+// func updateCatalog(fs afero.Fs, name string) (catalog.Catalog, error) {
+// 	fmt.Println("Reading catalog")
+// 	c, err := catalog.Read(fs, catalog.CatalogFileName)
+// 	if err != nil {
+// 		fmt.Println("Cannot read catalog. Folder must be rescanned...")
+// 		c = catalog.Scan(fs)
+// 		return c, nil
+// 	}
+
+// 	fmt.Println("Comparing folder contents with catalog")
+// 	diff := catalog.Diff(fs, c)
+// 	if len(diff.Update) > 0 {
+// 		fmt.Println("Some file have changed. Folder must be rescanned...")
+// 		c = catalog.Scan(fs)
+// 	} else if len(diff.Add) > 0 {
+// 		fmt.Println("Some files have been added to the folder. Adding them to the catalog...")
+// 		c = catalog.ScanAdd(fs, c, diff)
+// 	} else {
+// 		fmt.Println("The catalog is up to date")
+// 	}
+
+// 	return c, nil
+// }
+
+func readAndDiffCatalog(fs afero.Fs, name string) (catalog.Catalog, catalog.FileSystemDiff, error) {
 	fmt.Println("Reading catalog")
 	c, err := catalog.Read(fs, catalog.CatalogFileName)
 	if err != nil {
 		fmt.Println("Cannot read catalog. Folder must be rescanned...")
 		c = catalog.Scan(fs)
-		return c, nil
+		return c, catalog.NewFileSystemDiff(), nil
 	}
-
 	fmt.Println("Comparing folder contents with catalog")
 	diff := catalog.Diff(fs, c)
-	if len(diff.Update) > 0 {
-		fmt.Println("Some file have changed. Folder must be rescanned...")
-		c = catalog.Scan(fs)
-	} else if len(diff.Add) > 0 {
-		fmt.Println("Some files have been added to the folder. Adding them to the catalog...")
-		c = catalog.ScanAdd(fs, c, diff)
-	} else {
-		fmt.Println("The catalog is up to date")
-	}
-
-	return c, nil
+	return c, diff, nil
 }
 
 // initializeFolder prepares a folder to be used by CoBack.
@@ -51,7 +64,7 @@ func initializeFolder(path string, name string) (afero.Fs, error) {
 // The fs parameter is treated as the root of the import folder.
 func syncCatalogWithImportFolder(fs afero.Fs) (catalog.Catalog, error) {
 	fmt.Println("***************** Processing import folder ***************")
-	c, err := updateCatalog(fs, "import")
+	c, _, err := readAndDiffCatalog(fs, "import")
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +76,7 @@ func syncCatalogWithImportFolder(fs afero.Fs) (catalog.Catalog, error) {
 // The fs parameter is treated as the root of the staging folder.
 func syncCatalogWithStagingFolder(fs afero.Fs) (catalog.Catalog, error) {
 	fmt.Println("***************** Processing staging folder ***************")
-	c, err := updateCatalog(fs, "staging")
+	c, _, err := readAndDiffCatalog(fs, "staging")
 	if err != nil {
 		return nil, err
 	}
@@ -75,7 +88,7 @@ func syncCatalogWithStagingFolder(fs afero.Fs) (catalog.Catalog, error) {
 // The fs parameter is treated as the root of the Collection folder.
 func syncCatalogWithCollectionFolder(fs afero.Fs) (catalog.Catalog, error) {
 	fmt.Println("***************** Processing collection folder ***************")
-	c, err := updateCatalog(fs, "collection")
+	c, _, err := readAndDiffCatalog(fs, "collection")
 	if err != nil {
 		return nil, err
 	}
