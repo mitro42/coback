@@ -50,8 +50,7 @@ func readAndDiffCatalog(fs afero.Fs, name string) (catalog.Catalog, catalog.File
 
 // initializeFolder prepares a folder to be used by CoBack.
 // Creates the folder if necessary and returns an afero.Fs which roots at the specified folder.
-func initializeFolder(path string, name string) (afero.Fs, error) {
-	baseFs := afero.NewOsFs()
+func initializeFolder(baseFs afero.Fs, path string, name string) (afero.Fs, error) {
 	err := ensureDirectoryExist(baseFs, path)
 	if err != nil {
 		return nil, err
@@ -117,8 +116,9 @@ func main() {
 		fmt.Printf("Usage: %v import-from-path staging-path collection-path\n", os.Args[0])
 		os.Exit(-1)
 	}
+	baseFs := afero.NewOsFs()
 
-	importFs, err := initializeFolder(os.Args[1], "Import")
+	importFs, err := initializeFolder(baseFs, os.Args[1], "Import")
 	if err != nil {
 		fmt.Printf("Cannot initialize folder: %v\n", err)
 		os.Exit(-2)
@@ -129,7 +129,7 @@ func main() {
 		os.Exit(-2)
 	}
 
-	stagingFs, err := initializeFolder(os.Args[2], "Staging")
+	stagingFs, err := initializeFolder(baseFs, os.Args[2], "Staging")
 	if err != nil {
 		fmt.Printf("Cannot initialize folder: %v\n", err)
 		os.Exit(-2)
@@ -140,7 +140,7 @@ func main() {
 		os.Exit(-2)
 	}
 
-	collectionFs, err := initializeFolder(os.Args[3], "Collection")
+	collectionFs, err := initializeFolder(baseFs, os.Args[3], "Collection")
 	if err != nil {
 		fmt.Printf("Cannot initialize folder: %v\n", err)
 		os.Exit(-2)
