@@ -21,22 +21,22 @@ type ProgressBar interface {
 	Current() int64
 }
 
-// CheckResult contains the details of catalog checked against a folder in the file system.
+// FileSystemDiff contains the details of catalog checked against a folder in the file system.
 // Ok (set of paths): these files have the same size, modification time and content in the catalog and the FS
 // Add (set of paths): these files are present in the FS but not int the catalog, have to be added
 // Delete (set of paths): these files are present in the catalog but not present in the FS anymore, have to be deleted
 // Update (set of paths): these files have different size, modification time or content in the catalog and the FS.
 //                          Probably a full re-scan should be done
-type CheckResult struct {
+type FileSystemDiff struct {
 	Ok     map[string]bool
 	Add    map[string]bool
 	Delete map[Checksum]bool
 	Update map[string]bool
 }
 
-// NewCheckResult creates a new CheckResult struct
-func NewCheckResult() CheckResult {
-	return CheckResult{
+// NewFileSystemDiff creates a new FileSystemDiff struct
+func NewFileSystemDiff() FileSystemDiff {
+	return FileSystemDiff{
 		Ok:     make(map[string]bool),
 		Add:    make(map[string]bool),
 		Delete: make(map[Checksum]bool),
@@ -332,12 +332,12 @@ func fileSizes(fs afero.Fs, paths map[string]bool, wg *sync.WaitGroup) (chan str
 
 // ScanAdd performs a scan on a folder and checks the contents against a catalog   .
 // If new files are missing from the catalog they are added and a modified catalog is returned.
-func ScanAdd(fs afero.Fs, c Catalog, cr CheckResult) Catalog {
+func ScanAdd(fs afero.Fs, c Catalog, diff FileSystemDiff) Catalog {
 	var wg sync.WaitGroup
 	p, countBar, sizeBar := createProgressBars()
 	wg.Add(4)
 	const root = "."
-	files, sizes := fileSizes(fs, cr.Add, &wg)
+	files, sizes := fileSizes(fs, diff.Add, &wg)
 	items := readCatalogItems(fs, files, countBar, sizeBar, &wg)
 	go sumSizes(sizes, countBar, sizeBar, nil, &wg)
 
@@ -428,9 +428,9 @@ func collectFiles(c <-chan string, m map[string]bool, wg *sync.WaitGroup) {
 	wg.Done()
 }
 
-// CheckFiltered scans a folder and compares its contents to the contents of the catalog.
+// DiffFiltered scans a folder and compares its contents to the contents of the catalog.
 // It performs a full scan and returns the file paths separated into multiple lists based on the file status.
-func CheckFiltered(fs afero.Fs, c Catalog, filter FileFilter) CheckResult {
+func DiffFiltered(fs afero.Fs, c Catalog, filter FileFilter) FileSystemDiff {
 	okFiles := make(chan string, 1)
 	changedFiles := make(chan string, 1)
 	var wg sync.WaitGroup
@@ -443,7 +443,7 @@ func CheckFiltered(fs afero.Fs, c Catalog, filter FileFilter) CheckResult {
 	knownFiles, unknownFiles := filterByCatalog(filteredFiles, c, &wg)
 	checkExistingItems(fs, knownFiles, c, countBar, sizeBar, okFiles, changedFiles, &wg)
 	go sumSizes(sizes, countBar, sizeBar, nil, &wg)
-	ret := NewCheckResult()
+	ret := NewFileSystemDiff()
 
 	go collectFiles(okFiles, ret.Ok, &wg)
 	go collectFiles(changedFiles, ret.Update, &wg)
@@ -451,11 +451,11 @@ func CheckFiltered(fs afero.Fs, c Catalog, filter FileFilter) CheckResult {
 	wg.Wait()
 
 	p.Wait()
-	// log.Printf("Check done, ok: %v, to update: %v, to add: %v", len(ret.Ok), len(ret.Update), len(ret.Add))
+	// log.Printf("Diff done, ok: %v, to update: %v, to add: %v", len(ret.Ok), len(ret.Update), len(ret.Add))
 	return ret
 }
 
-// Check scans a folder and compares it to the catalog the same way as CheckFilter does but without filtering out any files
-func Check(fs afero.Fs, c Catalog) CheckResult {
-	return CheckFiltered(fs, c, noFilter{})
+// Diff scans a folder and compares it to the catalog the same way as DiffFiltered does but without filtering out any files
+func Diff(fs afero.Fs, c Catalog) FileSystemDiff {
+	return DiffFiltered(fs, c, noFilter{})
 }

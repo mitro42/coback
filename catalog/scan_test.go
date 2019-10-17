@@ -91,11 +91,11 @@ func TestCheckOk(t *testing.T) {
 	path := "test_data"
 	fs := createSafeFs(filepath.Join(basePath, path))
 	c := Scan(fs)
-	cr := Check(fs, c)
-	th.Equals(t, 0, len(cr.Add))
-	th.Equals(t, 0, len(cr.Delete))
-	th.Equals(t, 0, len(cr.Update))
-	th.Equals(t, 4, len(cr.Ok))
+	diff := Diff(fs, c)
+	th.Equals(t, 0, len(diff.Add))
+	th.Equals(t, 0, len(diff.Delete))
+	th.Equals(t, 0, len(diff.Update))
+	th.Equals(t, 4, len(diff.Ok))
 }
 
 func TestCheckFileMissingFromCatalog(t *testing.T) {
@@ -104,12 +104,12 @@ func TestCheckFileMissingFromCatalog(t *testing.T) {
 	fs := createSafeFs(filepath.Join(basePath, path))
 	filter := ExtensionFilter("bin")
 	c := ScanFolder(fs, "", filter)
-	cr := Check(fs, c)
+	diff := Diff(fs, c)
 	expAdd := map[string]bool{"subfolder/file1.bin": true, "subfolder/file2.bin": true}
-	th.Equals(t, expAdd, cr.Add)
-	th.Equals(t, 0, len(cr.Delete))
-	th.Equals(t, 0, len(cr.Update))
-	th.Equals(t, 2, len(cr.Ok))
+	th.Equals(t, expAdd, diff.Add)
+	th.Equals(t, 0, len(diff.Delete))
+	th.Equals(t, 0, len(diff.Update))
+	th.Equals(t, 2, len(diff.Ok))
 }
 
 // This cannot be detected yet
@@ -136,13 +136,13 @@ func TestCheckItemChecksumMismatch(t *testing.T) {
 	item.Md5Sum = "abcdef"
 	err = c.Set(item)
 	th.Ok(t, err)
-	cr := Check(fs, c)
+	diff := Diff(fs, c)
 	expAdd := map[string]bool{"subfolder/file1.bin": true, "subfolder/file2.bin": true}
 	expUpdate := map[string]bool{"test1.txt": true}
-	th.Equals(t, expAdd, cr.Add)
-	th.Equals(t, 0, len(cr.Delete))
-	th.Equals(t, expUpdate, cr.Update)
-	th.Equals(t, 1, len(cr.Ok))
+	th.Equals(t, expAdd, diff.Add)
+	th.Equals(t, 0, len(diff.Delete))
+	th.Equals(t, expUpdate, diff.Update)
+	th.Equals(t, 1, len(diff.Ok))
 }
 
 func TestCheckItemSizeMismatch(t *testing.T) {
@@ -156,13 +156,13 @@ func TestCheckItemSizeMismatch(t *testing.T) {
 	item.Size = 6854
 	err = c.Set(item)
 	th.Ok(t, err)
-	cr := Check(fs, c)
+	diff := Diff(fs, c)
 	expAdd := map[string]bool{"subfolder/file1.bin": true, "subfolder/file2.bin": true}
 	expUpdate := map[string]bool{"test1.txt": true}
-	th.Equals(t, expAdd, cr.Add)
-	th.Equals(t, 0, len(cr.Delete))
-	th.Equals(t, expUpdate, cr.Update)
-	th.Equals(t, 1, len(cr.Ok))
+	th.Equals(t, expAdd, diff.Add)
+	th.Equals(t, 0, len(diff.Delete))
+	th.Equals(t, expUpdate, diff.Update)
+	th.Equals(t, 1, len(diff.Ok))
 }
 
 func TestCheckItemModificationTimeMismatch(t *testing.T) {
@@ -176,13 +176,13 @@ func TestCheckItemModificationTimeMismatch(t *testing.T) {
 	item.ModificationTime = "1924"
 	err = c.Set(item)
 	th.Ok(t, err)
-	cr := Check(fs, c)
+	diff := Diff(fs, c)
 	expAdd := map[string]bool{"subfolder/file1.bin": true, "subfolder/file2.bin": true}
 	expUpdate := map[string]bool{"test1.txt": true}
-	th.Equals(t, expAdd, cr.Add)
-	th.Equals(t, 0, len(cr.Delete))
-	th.Equals(t, expUpdate, cr.Update)
-	th.Equals(t, 1, len(cr.Ok))
+	th.Equals(t, expAdd, diff.Add)
+	th.Equals(t, 0, len(diff.Delete))
+	th.Equals(t, expUpdate, diff.Update)
+	th.Equals(t, 1, len(diff.Ok))
 }
 
 func TestScanAdd(t *testing.T) {
@@ -196,8 +196,8 @@ func TestScanAdd(t *testing.T) {
 	createDummyFile(fs, dummy0)
 	createDummyFile(fs, dummy1)
 
-	checkResult := Check(fs, c)
-	c2 := ScanAdd(fs, c, checkResult)
+	diff := Diff(fs, c)
+	c2 := ScanAdd(fs, c, diff)
 
 	th.Equals(t, 4, c.Count())
 	th.Equals(t, 0, c.DeletedCount())

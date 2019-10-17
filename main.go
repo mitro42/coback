@@ -21,13 +21,13 @@ func updateCatalog(fs afero.Fs, name string) (catalog.Catalog, error) {
 	}
 
 	fmt.Println("Comparing folder contents with catalog")
-	cr := catalog.Check(fs, c)
-	if len(cr.Update) > 0 {
+	diff := catalog.Diff(fs, c)
+	if len(diff.Update) > 0 {
 		fmt.Println("Some file have changed. Folder must be rescanned...")
 		c = catalog.Scan(fs)
-	} else if len(cr.Add) > 0 {
+	} else if len(diff.Add) > 0 {
 		fmt.Println("Some files have been added to the folder. Adding them to the catalog...")
-		c = catalog.ScanAdd(fs, c, cr)
+		c = catalog.ScanAdd(fs, c, diff)
 	} else {
 		fmt.Println("The catalog is up to date")
 	}
