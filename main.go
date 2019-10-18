@@ -104,7 +104,7 @@ func stageFiles(importFs afero.Fs, items <-chan catalog.Item, stagingFs afero.Fs
 	targetFs := afero.NewBasePathFs(stagingFs, targetFolder)
 	for item := range items {
 		fmt.Println(item.Path)
-		err := fsh.CopyFile(importFs, item, targetFs)
+		err := fsh.CopyFile(importFs, item.Path, item.ModificationTime, targetFs)
 		if err != nil {
 			return err
 		}

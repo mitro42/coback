@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/mitro42/coback/catalog"
 	"github.com/pkg/errors"
 	"github.com/spf13/afero"
 )
@@ -53,25 +52,31 @@ func copyFileContent(sourceFs afero.Fs, sourcePath string, destinationFs afero.F
 }
 
 // setFileAttributes sets the modification and access times of a file in a FS as described in a catalog.Item
-func setFileAttributes(fs afero.Fs, item catalog.Item) error {
-	t, err := time.Parse(time.RFC3339Nano, item.ModificationTime)
+func setFileAttributes(fs afero.Fs, path, timestamp string) error {
+	t, err := time.Parse(time.RFC3339Nano, timestamp)
 	if err != nil {
-		return errors.Wrapf(err, "Cannot parse modification time of file '%v' ('%v')", item.Path, item.ModificationTime)
+		return errors.Wrapf(err, "Cannot parse modification time of file '%v' ('%v')", path, timestamp)
 	}
-	fs.Chtimes(item.Path, t, t)
+	fs.Chtimes(path, t, t)
 	return nil
 }
 
 // CopyFile copies a file described in a catalog.Item between two file systems.
 // The access and modification time stamps are set to the time specified in the item struct.
-func CopyFile(sourceFs afero.Fs, item catalog.Item, destinationFs afero.Fs) error {
-	size, err := copyFileContent(sourceFs, item.Path, destinationFs, item.Path)
-	if size != item.Size || err != nil {
-		return errors.Wrapf(err, "Failed to copy file '%v'", item.Path)
+func CopyFile(sourceFs afero.Fs, path, timestamp string, destinationFs afero.Fs) error {
+	size, err := copyFileContent(sourceFs, path, destinationFs, path)
+
+	if err != nil {
+		return errors.Wrapf(err, "Failed to copy file '%v'", path)
 	}
 
-	err = setFileAttributes(destinationFs, item)
-	return errors.Wrapf(err, "Failed to copy file '%v'", item.Path)
+	fiSource, err := sourceFs.Stat(path)
+	if err != nil || fiSource.Size() != size {
+		return errors.Wrapf(err, "Incorrect file size after copy '%v'", path)
+	}
+
+	err = setFileAttributes(destinationFs, path, timestamp)
+	return errors.Wrapf(err, "Failed to set file attributes '%v'", path)
 }
 
 // NextUnusedFolder returns a smallest positive integer as a string that can be used as the name of a new folder

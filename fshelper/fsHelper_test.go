@@ -75,7 +75,7 @@ func TestCopyFile(t *testing.T) {
 
 		sourceItem, err := catalog.NewItem(sourceFs, name)
 		th.Ok(t, err)
-		err = CopyFile(sourceFs, *sourceItem, destinationFs)
+		err = CopyFile(sourceFs, sourceItem.Path, sourceItem.ModificationTime, destinationFs)
 		th.Ok(t, err)
 		destinationItem, err := catalog.NewItem(destinationFs, name)
 		th.Ok(t, err)
@@ -101,7 +101,7 @@ func TestCopyFileErrors(t *testing.T) {
 
 	sourceItem := catalog.Item{Path: "test/file"}
 	th.Ok(t, err)
-	err = CopyFile(sourceFs, sourceItem, destinationFs)
+	err = CopyFile(sourceFs, sourceItem.Path, sourceItem.ModificationTime, destinationFs)
 	th.NokPrefix(t, err, "Failed to copy file 'test/file'")
 
 	// Destination folder cannot be created
@@ -117,22 +117,22 @@ func TestCopyFileErrors(t *testing.T) {
 	f.Close()
 	sourceItem2, err := catalog.NewItem(sourceFs, "test/file")
 
-	err = CopyFile(sourceFs, *sourceItem2, destinationFs)
+	err = CopyFile(sourceFs, sourceItem2.Path, sourceItem2.ModificationTime, destinationFs)
 	th.NokPrefix(t, err, "Failed to copy file 'test/file': Path is a file")
 
 	// Destination fs is read only
-	err = CopyFile(sourceFs, *sourceItem2, afero.NewReadOnlyFs(afero.NewMemMapFs()))
+	err = CopyFile(sourceFs, sourceItem2.Path, sourceItem2.ModificationTime, afero.NewReadOnlyFs(afero.NewMemMapFs()))
 	fmt.Println(err)
 	th.NokPrefix(t, err, "Failed to copy file 'test/file': Cannot create directory")
 
 	// Destination folder is read only
 	destinationFs = afero.NewMemMapFs()
 	th.Ok(t, destinationFs.Mkdir("test", 0755))
-	err = CopyFile(sourceFs, *sourceItem2, afero.NewReadOnlyFs(destinationFs))
+	err = CopyFile(sourceFs, sourceItem2.Path, sourceItem2.ModificationTime, afero.NewReadOnlyFs(destinationFs))
 	th.NokPrefix(t, err, "Failed to copy file 'test/file': Cannot create destination file")
 
 	destinationFs = afero.NewMemMapFs()
 	sourceItem2.ModificationTime = "Not a valid timestamp"
-	err = CopyFile(sourceFs, *sourceItem2, destinationFs)
-	th.NokPrefix(t, err, "Failed to copy file 'test/file': Cannot parse modification time of file 'test/file")
+	err = CopyFile(sourceFs, sourceItem2.Path, sourceItem2.ModificationTime, destinationFs)
+	th.NokPrefix(t, err, "Failed to set file attributes 'test/file': Cannot parse modification time of file 'test/file")
 }
