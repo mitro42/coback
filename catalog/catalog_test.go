@@ -275,11 +275,20 @@ func createTestCatalog(fs afero.Fs) *catalog {
 	return c
 }
 
+func createOneLevelTestCatalog(fs afero.Fs) *catalog {
+	c := newcatalog()
+	item, _ := NewItem(fs, "file1.bin")
+	c.Add(*item)
+	item, _ = NewItem(fs, "file2.bin")
+	c.Add(*item)
+	return c
+}
+
 func TestWriteReadOneLevel(t *testing.T) {
 	basePath, _ := os.Getwd()
 	path := "test_data/subfolder"
 	fs := fsh.CreateSafeFs(filepath.Join(basePath, path))
-	c := createTestCatalog(fs)
+	c := createOneLevelTestCatalog(fs)
 	c.Write(fs, CatalogFileName)
 	c2, err := Read(fs, CatalogFileName)
 	th.Ok(t, err)
