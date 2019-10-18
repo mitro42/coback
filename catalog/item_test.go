@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -17,9 +18,9 @@ func TestMissingFile(t *testing.T) {
 }
 
 func TestCatalogItem(t *testing.T) {
-	basePath, err := os.Getwd()
+	cwd, err := os.Getwd()
 	th.Ok(t, err)
-	fs := fsh.CreateSafeFs(basePath)
+	fs := fsh.CreateSafeFs(filepath.Dir(cwd))
 	path := "test_data/test1.txt"
 	strTs := "2018-10-24T23:38:47.713775685+01:00"
 	ts, err := time.Parse(time.RFC3339Nano, strTs)
@@ -34,9 +35,9 @@ func TestCatalogItem(t *testing.T) {
 }
 
 func TestCatalogItem2(t *testing.T) {
-	basePath, err := os.Getwd()
+	cwd, err := os.Getwd()
 	th.Ok(t, err)
-	fs := fsh.CreateSafeFs(basePath)
+	fs := fsh.CreateSafeFs(filepath.Dir(cwd))
 	path := "test_data/test2.txt"
 	strTs := "2018-10-25T07:37:27.809296805+01:00"
 	ts, err := time.Parse(time.RFC3339Nano, strTs)

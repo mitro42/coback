@@ -35,7 +35,7 @@ func TestEmptyCatalog(t *testing.T) {
 
 func TestEmptyCatalogAddRetrieve(t *testing.T) {
 	fs := afero.NewOsFs()
-	path := "test_data/test1.txt"
+	path := "../test_data/test1.txt"
 	expectedItem, err := NewItem(fs, path)
 	th.Ok(t, err)
 	c := NewCatalog()
@@ -53,7 +53,7 @@ func TestEmptyCatalogAddRetrieve(t *testing.T) {
 	th.Ok(t, err)
 	th.Equals(t, []Item{*expectedItem}, items)
 
-	path2 := "test_data/test2.txt"
+	path2 := "../test_data/test2.txt"
 	_, err = c.Item(path2)
 	th.Nok(t, err, "No such file: "+path2)
 
@@ -64,7 +64,7 @@ func TestEmptyCatalogAddRetrieve(t *testing.T) {
 
 func TestAddExisting(t *testing.T) {
 	fs := afero.NewOsFs()
-	path := "test_data/test1.txt"
+	path := "../test_data/test1.txt"
 	c := NewCatalog()
 	item, _ := NewItem(fs, path)
 	err := c.Add(*item)
@@ -77,7 +77,7 @@ func TestAddExisting(t *testing.T) {
 
 func TestAddDelete(t *testing.T) {
 	fs := afero.NewOsFs()
-	path := "test_data/test1.txt"
+	path := "../test_data/test1.txt"
 	c := NewCatalog()
 	c.DeletePath(path)
 	th.Equals(t, 0, c.Count())
@@ -96,7 +96,7 @@ func TestAddDelete(t *testing.T) {
 	deleted := c.IsDeletedChecksum("b3cd1cf6179bca32fd5d76473b129117")
 	th.Equals(t, true, deleted)
 
-	path2 := "test_data/test2.txt"
+	path2 := "../test_data/test2.txt"
 	checksum2 := Checksum("89b2b34c7b8d232041f0fcc1d213d7bc")
 	_, err = c.Item(path2)
 	th.Nok(t, err, "No such file: "+path2)
@@ -115,7 +115,7 @@ func TestDeleteChecksum(t *testing.T) {
 	th.Equals(t, true, c.IsDeletedChecksum(sum1))
 	th.Equals(t, 1, c.DeletedCount())
 
-	path := "test_data/test1.txt"
+	path := "../test_data/test1.txt"
 	item, err := NewItem(fs, path)
 	th.Ok(t, err)
 	err = c.Add(*item)
@@ -138,10 +138,10 @@ func TestDeletePathWithDuplicatedChecksum(t *testing.T) {
 	fs := afero.NewOsFs()
 	c := NewCatalog()
 
-	path1 := "test_data/test1.txt"
+	path1 := "../test_data/test1.txt"
 	item1, err := NewItem(fs, path1)
 	th.Ok(t, err)
-	path2 := "test_data/test2.txt"
+	path2 := "../test_data/test2.txt"
 	item2, err := NewItem(fs, path2)
 	item2.Md5Sum = item1.Md5Sum
 	th.Ok(t, err)
@@ -171,7 +171,7 @@ func TestAddFileWithDeletedChecksum(t *testing.T) {
 	fs := afero.NewOsFs()
 	c := NewCatalog()
 
-	path := "test_data/test1.txt"
+	path := "../test_data/test1.txt"
 	item, err := NewItem(fs, path)
 	th.Ok(t, err)
 
@@ -190,7 +190,7 @@ func TestAddFileWithDeletedChecksum(t *testing.T) {
 
 func TestSetMissing(t *testing.T) {
 	fs := afero.NewOsFs()
-	path := "test_data/test1.txt"
+	path := "../test_data/test1.txt"
 	c := NewCatalog()
 	expectedItem, _ := NewItem(fs, path)
 	err := c.Set(*expectedItem)
@@ -204,7 +204,7 @@ func TestSetMissing(t *testing.T) {
 	deleted := c.IsDeletedChecksum("b3cd1cf6179bca32fd5d76473b129117")
 	th.Equals(t, true, deleted)
 
-	path2 := "test_data/test2.txt"
+	path2 := "../test_data/test2.txt"
 	checksum2 := Checksum("89b2b34c7b8d232041f0fcc1d213d7bc")
 	_, err = c.Item(path2)
 	th.Nok(t, err, "No such file: "+path2)
@@ -216,7 +216,7 @@ func TestSetMissing(t *testing.T) {
 
 func TestSetExisting(t *testing.T) {
 	fs := afero.NewOsFs()
-	path := "test_data/test1.txt"
+	path := "../test_data/test1.txt"
 	c := NewCatalog()
 	item, _ := NewItem(fs, path)
 	err := c.Add(*item)
@@ -245,7 +245,7 @@ func TestSetExisting(t *testing.T) {
 
 func TestReadMissing(t *testing.T) {
 	basePath, _ := os.Getwd()
-	path := "test_data/subfolder"
+	path := "../test_data/subfolder"
 	fs := fsh.CreateSafeFs(filepath.Join(basePath, path))
 	c, err := Read(fs, CatalogFileName)
 	th.NokPrefix(t, err, "Cannot read catalog: 'coback.catalog'")
@@ -254,7 +254,7 @@ func TestReadMissing(t *testing.T) {
 
 func TestReadParseError(t *testing.T) {
 	basePath, _ := os.Getwd()
-	path := "test_data/subfolder"
+	path := "../test_data/subfolder"
 	fs := fsh.CreateSafeFs(filepath.Join(basePath, path))
 	afero.WriteFile(fs, CatalogFileName, []byte("Not a valid json"), 0644)
 	c, err := Read(fs, CatalogFileName)
@@ -286,7 +286,7 @@ func createOneLevelTestCatalog(fs afero.Fs) *catalog {
 
 func TestWriteReadOneLevel(t *testing.T) {
 	basePath, _ := os.Getwd()
-	path := "test_data/subfolder"
+	path := "../test_data/subfolder"
 	fs := fsh.CreateSafeFs(filepath.Join(basePath, path))
 	c := createOneLevelTestCatalog(fs)
 	c.Write(fs, CatalogFileName)
@@ -297,7 +297,7 @@ func TestWriteReadOneLevel(t *testing.T) {
 
 func TestWriteReadRecursive(t *testing.T) {
 	basePath, _ := os.Getwd()
-	path := "test_data"
+	path := "../test_data"
 	fs := fsh.CreateSafeFs(filepath.Join(basePath, path))
 	c := createTestCatalog(fs)
 	c.Write(fs, CatalogFileName)
@@ -308,7 +308,7 @@ func TestWriteReadRecursive(t *testing.T) {
 
 func TestClone(t *testing.T) {
 	basePath, _ := os.Getwd()
-	path := "test_data"
+	path := "../test_data"
 	fs := fsh.CreateSafeFs(filepath.Join(basePath, path))
 	c := createTestCatalog(fs)
 	c.DeleteChecksum("1234")
