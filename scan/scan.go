@@ -1,4 +1,4 @@
-package catalog
+package scan
 
 import (
 	"log"
@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/mitro42/coback/catalog"
 	"github.com/pkg/errors"
 	"github.com/spf13/afero"
 	"github.com/vbauerster/mpb"
@@ -30,7 +31,7 @@ type ProgressBar interface {
 type FileSystemDiff struct {
 	Ok     map[string]bool
 	Add    map[string]bool
-	Delete map[Checksum]bool
+	Delete map[catalog.Checksum]bool
 	Update map[string]bool
 }
 
@@ -39,7 +40,7 @@ func NewFileSystemDiff() FileSystemDiff {
 	return FileSystemDiff{
 		Ok:     make(map[string]bool),
 		Add:    make(map[string]bool),
-		Delete: make(map[Checksum]bool),
+		Delete: make(map[catalog.Checksum]bool),
 		Update: make(map[string]bool),
 	}
 }
@@ -53,7 +54,7 @@ func walkFolder(fs afero.Fs, root string, wg *sync.WaitGroup) (<-chan string, <-
 	go func() {
 		defer wg.Done()
 		afero.Walk(fs, root, func(path string, fi os.FileInfo, err error) error {
-			if !fi.IsDir() && fi.Name() != CatalogFileName {
+			if !fi.IsDir() && fi.Name() != catalog.CatalogFileName {
 				files <- path
 				sizes <- fi.Size()
 			}
@@ -82,9 +83,9 @@ func filterFiles(files <-chan string, filter FileFilter, wg *sync.WaitGroup) cha
 	return filtered
 }
 
-func catalogFile(fs afero.Fs, path string, out chan Item, countBar ProgressBar, sizeBar ProgressBar) {
+func catalogFile(fs afero.Fs, path string, out chan catalog.Item, countBar ProgressBar, sizeBar ProgressBar) {
 	start := time.Now()
-	item, err := NewItem(fs, path)
+	item, err := catalog.NewItem(fs, path)
 	if err != nil {
 		log.Printf("Cannot read file '%v'", path)
 	} else {
@@ -96,9 +97,9 @@ func catalogFile(fs afero.Fs, path string, out chan Item, countBar ProgressBar, 
 
 // checkCatalogFile checks a given file (metadata and content) against a catalog
 // Returns true if the file at path exist and the content matches the catalog.
-func checkCatalogFile(fs afero.Fs, path string, c Catalog, countBar ProgressBar, sizeBar ProgressBar, ok chan<- string, changed chan<- string) error {
+func checkCatalogFile(fs afero.Fs, path string, c catalog.Catalog, countBar ProgressBar, sizeBar ProgressBar, ok chan<- string, changed chan<- string) error {
 	start := time.Now()
-	item, err := NewItem(fs, path)
+	item, err := catalog.NewItem(fs, path)
 	if err != nil {
 		return errors.Errorf("Cannot read file '%v'", path)
 	}
@@ -128,9 +129,9 @@ func readCatalogItems(fs afero.Fs,
 	paths chan string,
 	countBar ProgressBar,
 	sizeBar ProgressBar,
-	globalWg *sync.WaitGroup) <-chan Item {
+	globalWg *sync.WaitGroup) <-chan catalog.Item {
 
-	out := make(chan Item, 10)
+	out := make(chan catalog.Item, 10)
 	var wg sync.WaitGroup
 	const concurrency = 6
 	wg.Add(concurrency)
@@ -149,7 +150,7 @@ func readCatalogItems(fs afero.Fs,
 			}()
 		}
 		wg.Wait()
-		out <- Item{}
+		out <- catalog.Item{}
 		sizeBar.SetTotal(sizeBar.Current(), true)
 		countBar.SetTotal(countBar.Current(), true)
 	}()
@@ -165,7 +166,7 @@ func readCatalogItems(fs afero.Fs,
 // The paths channel must be buffered.
 func checkExistingItems(fs afero.Fs,
 	paths chan string,
-	c Catalog,
+	c catalog.Catalog,
 	countBar ProgressBar,
 	sizeBar ProgressBar,
 	ok chan<- string,
@@ -249,13 +250,13 @@ func createProgressBars() (*mpb.Progress, ProgressBar, ProgressBar) {
 	return p, countBar, sizeBar
 }
 
-func updateAndSaveCatalog(fs afero.Fs, c Catalog, catalogPath string, items <-chan Item,
-	result chan<- Catalog, wg *sync.WaitGroup) {
+func updateAndSaveCatalog(fs afero.Fs, c catalog.Catalog, catalogPath string, items <-chan catalog.Item,
+	result chan<- catalog.Catalog, wg *sync.WaitGroup) {
 	defer wg.Done()
 	ret := c.Clone()
 	lastSave := time.Now()
 	for item := range items {
-		if (item == Item{}) {
+		if (item == catalog.Item{}) {
 			break
 		}
 		err := ret.Add(item)
@@ -278,14 +279,14 @@ func updateAndSaveCatalog(fs afero.Fs, c Catalog, catalogPath string, items <-ch
 	result <- ret
 }
 
-func saveCatalog(fs afero.Fs, catalogPath string, items <-chan Item,
-	result chan<- Catalog, wg *sync.WaitGroup) {
-	c := NewCatalog()
+func saveCatalog(fs afero.Fs, catalogPath string, items <-chan catalog.Item,
+	result chan<- catalog.Catalog, wg *sync.WaitGroup) {
+	c := catalog.NewCatalog()
 	updateAndSaveCatalog(fs, c, catalogPath, items, result, wg)
 }
 
 // ScanFolder recursively scans the root folder and adds all files to the catalog
-func ScanFolder(fs afero.Fs, root string, filter FileFilter) Catalog {
+func ScanFolder(fs afero.Fs, root string, filter FileFilter) catalog.Catalog {
 	var wg sync.WaitGroup
 	p, countBar, sizeBar := createProgressBars()
 	wg.Add(5)
@@ -293,8 +294,8 @@ func ScanFolder(fs afero.Fs, root string, filter FileFilter) Catalog {
 	filteredFiles := filterFiles(files, filter, &wg)
 	items := readCatalogItems(fs, filteredFiles, countBar, sizeBar, &wg)
 	go sumSizes(sizes, countBar, sizeBar, nil, &wg)
-	result := make(chan Catalog, 1)
-	catalogFilePath := filepath.Join(root, CatalogFileName)
+	result := make(chan catalog.Catalog, 1)
+	catalogFilePath := filepath.Join(root, catalog.CatalogFileName)
 	go saveCatalog(fs, catalogFilePath, items, result, &wg)
 	wg.Wait()
 	ret := <-result
@@ -305,7 +306,7 @@ func ScanFolder(fs afero.Fs, root string, filter FileFilter) Catalog {
 }
 
 // Scan recursively scans the whole file system
-func Scan(fs afero.Fs) Catalog {
+func Scan(fs afero.Fs) catalog.Catalog {
 	return ScanFolder(fs, ".", noFilter{})
 }
 
@@ -332,7 +333,7 @@ func fileSizes(fs afero.Fs, paths map[string]bool, wg *sync.WaitGroup) (chan str
 
 // ScanAdd performs a scan on a folder and checks the contents against a catalog   .
 // If new files are missing from the catalog they are added and a modified catalog is returned.
-func ScanAdd(fs afero.Fs, c Catalog, diff FileSystemDiff) Catalog {
+func ScanAdd(fs afero.Fs, c catalog.Catalog, diff FileSystemDiff) catalog.Catalog {
 	var wg sync.WaitGroup
 	p, countBar, sizeBar := createProgressBars()
 	wg.Add(4)
@@ -341,8 +342,8 @@ func ScanAdd(fs afero.Fs, c Catalog, diff FileSystemDiff) Catalog {
 	items := readCatalogItems(fs, files, countBar, sizeBar, &wg)
 	go sumSizes(sizes, countBar, sizeBar, nil, &wg)
 
-	result := make(chan Catalog, 1)
-	catalogFilePath := filepath.Join(root, CatalogFileName)
+	result := make(chan catalog.Catalog, 1)
+	catalogFilePath := filepath.Join(root, catalog.CatalogFileName)
 	go updateAndSaveCatalog(fs, c, catalogFilePath, items, result, &wg)
 	wg.Wait()
 	ret := <-result
@@ -353,7 +354,7 @@ func ScanAdd(fs afero.Fs, c Catalog, diff FileSystemDiff) Catalog {
 }
 
 // // Scan recursively scans the whole file system
-// func ResumeScan(fs afero.Fs, c Catalog) {
+// func ResumeScan(fs afero.Fs, c catalog.Catalog) {
 // 	return ScanFolder(fs, ".")
 // }
 
@@ -362,12 +363,12 @@ func ScanAdd(fs afero.Fs, c Catalog, diff FileSystemDiff) Catalog {
 // the content.
 // Returns true if the catalog is consistent with the file system,
 // and false if there is a mismatch
-func QuickCheck(fs afero.Fs, c Catalog) bool {
+func QuickCheck(fs afero.Fs, c catalog.Catalog) bool {
 	return true
 }
 
 //
-// func readAndCheckCatalogItems(fs afero.Fs, paths <-chan string, c Catalog, countBar ProgressBar, sizeBar ProgressBar) bool {
+// func readAndCheckCatalogItems(fs afero.Fs, paths <-chan string, c catalog.Catalog, countBar ProgressBar, sizeBar ProgressBar) bool {
 // 	var wg sync.WaitGroup
 // 	const concurrency = 6
 // 	wg.Add(concurrency)
@@ -397,7 +398,7 @@ func QuickCheck(fs afero.Fs, c Catalog) bool {
 // If an file read from the files channel is in the catalog (only the path is checked, no metadata, no contents)
 // it is put to known otherwise to unknown.
 // The processing can be interrupted by a message sent to the done channel.
-func filterByCatalog(files <-chan string, c Catalog, wg *sync.WaitGroup) (known chan string, unknown chan string) {
+func filterByCatalog(files <-chan string, c catalog.Catalog, wg *sync.WaitGroup) (known chan string, unknown chan string) {
 	known = make(chan string, 100)
 	unknown = make(chan string, 100)
 	go func() {
@@ -430,7 +431,7 @@ func collectFiles(c <-chan string, m map[string]bool, wg *sync.WaitGroup) {
 
 // DiffFiltered scans a folder and compares its contents to the contents of the catalog.
 // It performs a full scan and returns the file paths separated into multiple lists based on the file status.
-func DiffFiltered(fs afero.Fs, c Catalog, filter FileFilter) FileSystemDiff {
+func DiffFiltered(fs afero.Fs, c catalog.Catalog, filter FileFilter) FileSystemDiff {
 	okFiles := make(chan string, 1)
 	changedFiles := make(chan string, 1)
 	var wg sync.WaitGroup
@@ -456,6 +457,6 @@ func DiffFiltered(fs afero.Fs, c Catalog, filter FileFilter) FileSystemDiff {
 }
 
 // Diff scans a folder and compares it to the catalog the same way as DiffFiltered does but without filtering out any files
-func Diff(fs afero.Fs, c Catalog) FileSystemDiff {
+func Diff(fs afero.Fs, c catalog.Catalog) FileSystemDiff {
 	return DiffFiltered(fs, c, noFilter{})
 }

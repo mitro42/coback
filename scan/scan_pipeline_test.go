@@ -1,4 +1,4 @@
-package catalog
+package scan
 
 import (
 	"fmt"
@@ -8,6 +8,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/mitro42/coback/catalog"
 	cth "github.com/mitro42/coback/catalogtesthelper"
 	fsh "github.com/mitro42/coback/fshelper"
 	th "github.com/mitro42/testhelper"
@@ -39,7 +40,7 @@ func TestWalkEmptyFolder(t *testing.T) {
 }
 
 func TestWalkFolderOneLevel(t *testing.T) {
-	fs := fsh.CreateSafeFs("test_data/subfolder")
+	fs := fsh.CreateSafeFs("../test_data/subfolder")
 	var wg sync.WaitGroup
 	wg.Add(1)
 	files, sizes := walkFolder(fs, "", &wg)
@@ -55,7 +56,7 @@ func TestWalkFolderOneLevel(t *testing.T) {
 }
 
 func TestWalkFolderRecursive(t *testing.T) {
-	fs := fsh.CreateSafeFs("test_data")
+	fs := fsh.CreateSafeFs("../test_data")
 	var wg sync.WaitGroup
 	wg.Add(1)
 	files, sizes := walkFolder(fs, "", &wg)
@@ -71,10 +72,10 @@ func TestWalkFolderRecursive(t *testing.T) {
 }
 
 func TestWalkFolderIgnoreCatalog(t *testing.T) {
-	fs := fsh.CreateSafeFs("test_data")
+	fs := fsh.CreateSafeFs("../test_data")
 	var wg sync.WaitGroup
 	wg.Add(1)
-	fs.Create(CatalogFileName)
+	fs.Create(catalog.CatalogFileName)
 	files, sizes := walkFolder(fs, "", &wg)
 	wg.Wait()
 
@@ -160,8 +161,8 @@ func TestSumSizes(t *testing.T) {
 func TestCheckCatalogFileMissing(t *testing.T) {
 	countBar := newMockProgressBar()
 	sizeBar := newMockProgressBar()
-	fs := fsh.CreateSafeFs("test_data")
-	c := NewCatalog()
+	fs := fsh.CreateSafeFs("../test_data")
+	c := catalog.NewCatalog()
 	okFiles := make(chan string)
 	changedFiles := make(chan string)
 	th.Nok(t, checkCatalogFile(fs, "no_such_file", c, countBar, sizeBar, okFiles, changedFiles), "Cannot read file 'no_such_file'")
@@ -176,7 +177,7 @@ func TestCheckCatalogFileNotInCatalog(t *testing.T) {
 	countBar := newMockProgressBar()
 	sizeBar := newMockProgressBar()
 	path := "test_data"
-	fs := fsh.CreateSafeFs(filepath.Join(basePath, path))
+	fs := fsh.CreateSafeFs(filepath.Join(filepath.Dir(basePath), path))
 	filter := ExtensionFilter("txt")
 	c := ScanFolder(fs, "", filter)
 	okFiles := make(chan string, 1)
@@ -195,7 +196,7 @@ func TestCheckCatalogFileSuccess(t *testing.T) {
 	countBar := newMockProgressBar()
 	sizeBar := newMockProgressBar()
 	path := "test_data"
-	fs := fsh.CreateSafeFs(filepath.Join(basePath, path))
+	fs := fsh.CreateSafeFs(filepath.Join(filepath.Dir(basePath), path))
 	c := ScanFolder(fs, "", noFilter{})
 	okFiles := make(chan string, 1)
 	changedFiles := make(chan string, 1)
@@ -212,7 +213,7 @@ func TestCheckCatalogFileMismatch(t *testing.T) {
 	basePath, _ := os.Getwd()
 	countBar := newMockProgressBar()
 	sizeBar := newMockProgressBar()
-	path := filepath.Join(basePath, "test_data")
+	path := filepath.Join(filepath.Dir(basePath), "test_data")
 	fs := fsh.CreateSafeFs(path)
 	c := ScanFolder(fs, "", noFilter{})
 	modifiedFile := "test1.txt"
@@ -243,7 +244,7 @@ func TestCheckExistingItemsSuccess(t *testing.T) {
 	basePath, _ := os.Getwd()
 	countBar := newMockProgressBar()
 	sizeBar := newMockProgressBar()
-	path := filepath.Join(basePath, "test_data")
+	path := filepath.Join(filepath.Dir(basePath), "test_data")
 	fs := fsh.CreateSafeFs(path)
 	c := ScanFolder(fs, "", noFilter{})
 	inputFiles := make(chan string, 4)
@@ -270,7 +271,7 @@ func TestCheckExistingItemsMismatch(t *testing.T) {
 	basePath, _ := os.Getwd()
 	countBar := newMockProgressBar()
 	sizeBar := newMockProgressBar()
-	path := filepath.Join(basePath, "test_data")
+	path := filepath.Join(filepath.Dir(basePath), "test_data")
 	fs := fsh.CreateSafeFs(path)
 	c := ScanFolder(fs, "", noFilter{})
 	inputFiles := make(chan string, 1)
@@ -295,7 +296,7 @@ func TestCheckExistingItemsMismatch(t *testing.T) {
 
 func TestCheckFilterByCatalogNoFiles(t *testing.T) {
 	basePath, _ := os.Getwd()
-	path := filepath.Join(basePath, "test_data")
+	path := filepath.Join(filepath.Dir(basePath), "test_data")
 	fs := fsh.CreateSafeFs(path)
 	c := ScanFolder(fs, "", noFilter{})
 	input := make(chan string, 1)
@@ -312,7 +313,7 @@ func TestCheckFilterByCatalogNoFiles(t *testing.T) {
 
 func TestCheckFilterByCatalogEmptyCatalog(t *testing.T) {
 	inputFiles := map[string]bool{"subfolder/file1.bin": true, "subfolder/file2.bin": true, "test1.txt": true, "test2.txt": true}
-	c := NewCatalog()
+	c := catalog.NewCatalog()
 	input := make(chan string, 10)
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -330,7 +331,7 @@ func TestCheckFilterByCatalogEmptyCatalog(t *testing.T) {
 func TestCheckFilterByCatalogMixed(t *testing.T) {
 	basePath, _ := os.Getwd()
 	path := "test_data"
-	fs := fsh.CreateSafeFs(filepath.Join(basePath, path))
+	fs := fsh.CreateSafeFs(filepath.Join(filepath.Dir(basePath), path))
 	filter := ExtensionFilter("txt")
 	c := ScanFolder(fs, "", filter)
 
@@ -354,7 +355,7 @@ func TestCheckFilterByCatalogMixed(t *testing.T) {
 func TestReadCatalogItems(t *testing.T) {
 	basePath, _ := os.Getwd()
 	path := "test_data"
-	fs := fsh.CreateSafeFs(filepath.Join(basePath, path))
+	fs := fsh.CreateSafeFs(filepath.Join(filepath.Dir(basePath), path))
 	countBar := newMockProgressBar()
 	sizeBar := newMockProgressBar()
 
@@ -371,7 +372,7 @@ func TestReadCatalogItems(t *testing.T) {
 	outputPaths := make([]string, 0, 0)
 	for range inputFiles {
 		item := <-catalogItems
-		expectedItem, err := NewItem(fs, item.Path)
+		expectedItem, err := catalog.NewItem(fs, item.Path)
 		th.Ok(t, err)
 		th.Equals(t, *expectedItem, item)
 		outputPaths = append(outputPaths, item.Path)
@@ -408,7 +409,7 @@ func TestReadCatalogItemsEmpty(t *testing.T) {
 	input <- ""
 
 	wg.Wait()
-	th.Equals(t, Item{}, <-catalogItems)
+	th.Equals(t, catalog.Item{}, <-catalogItems)
 	th.Equals(t, 0, len(catalogItems))
 	th.Equals(t, 0, countBar.incrByCount)
 	th.Equals(t, 0, sizeBar.incrByCount)
@@ -418,38 +419,38 @@ func TestSaveCatalogEmpty(t *testing.T) {
 	basePath, _ := os.Getwd()
 	path := "test_data"
 	fs := fsh.CreateSafeFs(filepath.Join(basePath, path))
-	items := make(chan Item)
-	result := make(chan Catalog, 1)
+	items := make(chan catalog.Item)
+	result := make(chan catalog.Catalog, 1)
 	var wg sync.WaitGroup
 	wg.Add(1)
 
-	go saveCatalog(fs, CatalogFileName, items, result, &wg)
-	items <- Item{}
+	go saveCatalog(fs, catalog.CatalogFileName, items, result, &wg)
+	items <- catalog.Item{}
 	wg.Wait()
 	c := <-result
-	th.Equals(t, NewCatalog(), c)
+	th.Equals(t, catalog.NewCatalog(), c)
 }
 
 func TestSaveCatalog(t *testing.T) {
 	basePath, _ := os.Getwd()
 	path := "test_data"
-	fs := fsh.CreateSafeFs(filepath.Join(basePath, path))
-	items := make(chan Item)
-	result := make(chan Catalog, 1)
+	fs := fsh.CreateSafeFs(filepath.Join(filepath.Dir(basePath), path))
+	items := make(chan catalog.Item)
+	result := make(chan catalog.Catalog, 1)
 	var wg sync.WaitGroup
 	wg.Add(1)
 
-	go saveCatalog(fs, CatalogFileName, items, result, &wg)
-	item1, err := NewItem(fs, "test1.txt")
+	go saveCatalog(fs, catalog.CatalogFileName, items, result, &wg)
+	item1, err := catalog.NewItem(fs, "test1.txt")
 	th.Ok(t, err)
-	item2, err := NewItem(fs, "subfolder/file1.bin")
+	item2, err := catalog.NewItem(fs, "subfolder/file1.bin")
 	th.Ok(t, err)
 	items <- *item1
 	items <- *item2
-	items <- Item{}
+	items <- catalog.Item{}
 	wg.Wait()
 	c := <-result
-	expectedCatalog := NewCatalog()
+	expectedCatalog := catalog.NewCatalog()
 	expectedCatalog.Add(*item1)
 	expectedCatalog.Add(*item2)
 	th.Equals(t, expectedCatalog, c)

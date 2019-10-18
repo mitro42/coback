@@ -6,6 +6,7 @@ import (
 
 	"github.com/mitro42/coback/catalog"
 	fsh "github.com/mitro42/coback/fshelper"
+	"github.com/mitro42/coback/scan"
 	"github.com/spf13/afero"
 )
 
@@ -36,16 +37,16 @@ import (
 // 	return c, nil
 // }
 
-func readAndDiffCatalog(fs afero.Fs, name string) (catalog.Catalog, catalog.FileSystemDiff, error) {
+func readAndDiffCatalog(fs afero.Fs, name string) (catalog.Catalog, scan.FileSystemDiff, error) {
 	fmt.Println("Reading catalog")
 	c, err := catalog.Read(fs, catalog.CatalogFileName)
 	if err != nil {
 		fmt.Println("Cannot read catalog. Folder must be rescanned...")
-		c = catalog.Scan(fs)
-		return c, catalog.NewFileSystemDiff(), nil
+		c = scan.Scan(fs)
+		return c, scan.NewFileSystemDiff(), nil
 	}
 	fmt.Println("Comparing folder contents with catalog")
-	diff := catalog.Diff(fs, c)
+	diff := scan.Diff(fs, c)
 	return c, diff, nil
 }
 

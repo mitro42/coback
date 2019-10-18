@@ -1,10 +1,11 @@
-package catalog
+package scan
 
 import (
 	"os"
 	"sync"
 	"time"
 
+	"github.com/mitro42/coback/catalog"
 	"github.com/spf13/afero"
 )
 
@@ -58,7 +59,7 @@ func changeFileContent(fs afero.Fs, path string) error {
 type dummyFileDescription struct {
 	Path    string
 	Size    int64
-	Md5Sum  Checksum
+	Md5Sum  catalog.Checksum
 	Content string
 }
 
