@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	fsh "github.com/mitro42/coback/fshelper"
 	th "github.com/mitro42/testhelper"
 	"github.com/spf13/afero"
 )
@@ -18,7 +19,7 @@ func TestMissingFile(t *testing.T) {
 func TestCatalogItem(t *testing.T) {
 	basePath, err := os.Getwd()
 	th.Ok(t, err)
-	fs := createSafeFs(basePath)
+	fs := fsh.CreateSafeFs(basePath)
 	path := "test_data/test1.txt"
 	strTs := "2018-10-24T23:38:47.713775685+01:00"
 	ts, err := time.Parse(time.RFC3339Nano, strTs)
@@ -35,7 +36,7 @@ func TestCatalogItem(t *testing.T) {
 func TestCatalogItem2(t *testing.T) {
 	basePath, err := os.Getwd()
 	th.Ok(t, err)
-	fs := createSafeFs(basePath)
+	fs := fsh.CreateSafeFs(basePath)
 	path := "test_data/test2.txt"
 	strTs := "2018-10-25T07:37:27.809296805+01:00"
 	ts, err := time.Parse(time.RFC3339Nano, strTs)

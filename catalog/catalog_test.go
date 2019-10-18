@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	fsh "github.com/mitro42/coback/fshelper"
 	th "github.com/mitro42/testhelper"
 	"github.com/spf13/afero"
 )
@@ -244,7 +245,7 @@ func TestSetExisting(t *testing.T) {
 func TestReadMissing(t *testing.T) {
 	basePath, _ := os.Getwd()
 	path := "test_data/subfolder"
-	fs := createSafeFs(filepath.Join(basePath, path))
+	fs := fsh.CreateSafeFs(filepath.Join(basePath, path))
 	c, err := Read(fs, CatalogFileName)
 	th.NokPrefix(t, err, "Cannot read catalog: 'coback.catalog'")
 	th.Equals(t, c, nil)
@@ -253,7 +254,7 @@ func TestReadMissing(t *testing.T) {
 func TestReadParseError(t *testing.T) {
 	basePath, _ := os.Getwd()
 	path := "test_data/subfolder"
-	fs := createSafeFs(filepath.Join(basePath, path))
+	fs := fsh.CreateSafeFs(filepath.Join(basePath, path))
 	afero.WriteFile(fs, CatalogFileName, []byte("Not a valid json"), 0644)
 	c, err := Read(fs, CatalogFileName)
 	th.NokPrefix(t, err, "Cannot parse catalog json: 'coback.catalog'")
@@ -263,7 +264,7 @@ func TestReadParseError(t *testing.T) {
 func TestWriteReadOneLevel(t *testing.T) {
 	basePath, _ := os.Getwd()
 	path := "test_data/subfolder"
-	fs := createSafeFs(filepath.Join(basePath, path))
+	fs := fsh.CreateSafeFs(filepath.Join(basePath, path))
 	c := Scan(fs)
 	c2, err := Read(fs, CatalogFileName)
 	th.Ok(t, err)
@@ -273,7 +274,7 @@ func TestWriteReadOneLevel(t *testing.T) {
 func TestWriteReadRecursive(t *testing.T) {
 	basePath, _ := os.Getwd()
 	path := "test_data"
-	fs := createSafeFs(filepath.Join(basePath, path))
+	fs := fsh.CreateSafeFs(filepath.Join(basePath, path))
 	c := Scan(fs)
 	c2, err := Read(fs, CatalogFileName)
 	th.Ok(t, err)
@@ -283,7 +284,7 @@ func TestWriteReadRecursive(t *testing.T) {
 func TestClone(t *testing.T) {
 	basePath, _ := os.Getwd()
 	path := "test_data"
-	fs := createSafeFs(filepath.Join(basePath, path))
+	fs := fsh.CreateSafeFs(filepath.Join(basePath, path))
 	c := Scan(fs).(*catalog)
 	c.DeleteChecksum("1234")
 	clone := c.Clone().(*catalog)

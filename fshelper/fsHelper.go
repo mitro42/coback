@@ -92,3 +92,12 @@ func NextUnusedFolder(fs afero.Fs) string {
 		}
 	}
 }
+
+// CreateSafeFs creates a temporary memory file system layer on top of a real folder in the OS file system.
+// The returned fs can be safely modified, its changes won't change to OS file system.
+func CreateSafeFs(basePath string) afero.Fs {
+	base := afero.NewBasePathFs(afero.NewOsFs(), basePath)
+	roBase := afero.NewReadOnlyFs(base)
+	sfs := afero.NewCopyOnWriteFs(roBase, afero.NewMemMapFs())
+	return sfs
+}

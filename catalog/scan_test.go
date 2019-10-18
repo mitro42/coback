@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	fsh "github.com/mitro42/coback/fshelper"
 	th "github.com/mitro42/testhelper"
 	"github.com/spf13/afero"
 )
@@ -30,7 +31,7 @@ func checkFilesInCatalog(t *testing.T, c Catalog, path string, size int64, md5su
 }
 
 func TestScanOneLevelFolder(t *testing.T) {
-	fs := createSafeFs("test_data")
+	fs := fsh.CreateSafeFs("test_data")
 	c := ScanFolder(fs, "subfolder", noFilter{})
 
 	th.Equals(t, c.Count(), 2)
@@ -42,7 +43,7 @@ func TestScanOneLevelFolder(t *testing.T) {
 
 func TestScanFolderRecursive(t *testing.T) {
 	basePath, _ := os.Getwd()
-	fs := createSafeFs(basePath)
+	fs := fsh.CreateSafeFs(basePath)
 	c := ScanFolder(fs, "test_data", noFilter{})
 
 	th.Equals(t, c.Count(), 4)
@@ -55,7 +56,7 @@ func TestScanFolderRecursive(t *testing.T) {
 
 func TestScanRecursive(t *testing.T) {
 	basePath, _ := os.Getwd()
-	fs := createSafeFs(filepath.Join(basePath, "test_data"))
+	fs := fsh.CreateSafeFs(filepath.Join(basePath, "test_data"))
 	c := Scan(fs)
 
 	th.Equals(t, c.Count(), 4)
@@ -68,7 +69,7 @@ func TestScanRecursive(t *testing.T) {
 
 func TestScanWithExtensionFilter(t *testing.T) {
 	basePath, _ := os.Getwd()
-	fs := createSafeFs(basePath)
+	fs := fsh.CreateSafeFs(basePath)
 	c := ScanFolder(fs, "test_data", ExtensionFilter("txt"))
 
 	th.Equals(t, c.Count(), 2)
@@ -79,7 +80,7 @@ func TestScanWithExtensionFilter(t *testing.T) {
 
 func TestScanWithExtensionFilter2(t *testing.T) {
 	basePath, _ := os.Getwd()
-	fs := createSafeFs(basePath)
+	fs := fsh.CreateSafeFs(basePath)
 	c := ScanFolder(fs, "test_data", ExtensionFilter("txt", "bin"))
 
 	th.Equals(t, c.Count(), 0)
@@ -89,7 +90,7 @@ func TestScanWithExtensionFilter2(t *testing.T) {
 func TestCheckOk(t *testing.T) {
 	basePath, _ := os.Getwd()
 	path := "test_data"
-	fs := createSafeFs(filepath.Join(basePath, path))
+	fs := fsh.CreateSafeFs(filepath.Join(basePath, path))
 	c := Scan(fs)
 	diff := Diff(fs, c)
 	th.Equals(t, 0, len(diff.Add))
@@ -101,7 +102,7 @@ func TestCheckOk(t *testing.T) {
 func TestCheckFileMissingFromCatalog(t *testing.T) {
 	basePath, _ := os.Getwd()
 	path := "test_data"
-	fs := createSafeFs(filepath.Join(basePath, path))
+	fs := fsh.CreateSafeFs(filepath.Join(basePath, path))
 	filter := ExtensionFilter("bin")
 	c := ScanFolder(fs, "", filter)
 	diff := Diff(fs, c)
@@ -128,7 +129,7 @@ func TestCheckFileMissingFromCatalog(t *testing.T) {
 func TestCheckItemChecksumMismatch(t *testing.T) {
 	basePath, _ := os.Getwd()
 	path := "test_data"
-	fs := createSafeFs(filepath.Join(basePath, path))
+	fs := fsh.CreateSafeFs(filepath.Join(basePath, path))
 	filter := ExtensionFilter("bin")
 	c := ScanFolder(fs, "", filter)
 	item, err := c.Item("test1.txt")
@@ -148,7 +149,7 @@ func TestCheckItemChecksumMismatch(t *testing.T) {
 func TestCheckItemSizeMismatch(t *testing.T) {
 	basePath, _ := os.Getwd()
 	path := "test_data"
-	fs := createSafeFs(filepath.Join(basePath, path))
+	fs := fsh.CreateSafeFs(filepath.Join(basePath, path))
 	filter := ExtensionFilter("bin")
 	c := ScanFolder(fs, "", filter)
 	item, err := c.Item("test1.txt")
@@ -168,7 +169,7 @@ func TestCheckItemSizeMismatch(t *testing.T) {
 func TestCheckItemModificationTimeMismatch(t *testing.T) {
 	basePath, _ := os.Getwd()
 	path := "test_data"
-	fs := createSafeFs(filepath.Join(basePath, path))
+	fs := fsh.CreateSafeFs(filepath.Join(basePath, path))
 	filter := ExtensionFilter("bin")
 	c := ScanFolder(fs, "", filter)
 	item, err := c.Item("test1.txt")
@@ -188,7 +189,7 @@ func TestCheckItemModificationTimeMismatch(t *testing.T) {
 func TestScanAdd(t *testing.T) {
 	basePath, _ := os.Getwd()
 	path := "test_data"
-	fs := createSafeFs(filepath.Join(basePath, path))
+	fs := fsh.CreateSafeFs(filepath.Join(basePath, path))
 	c := Scan(fs)
 
 	dummy0 := dummies[0]
