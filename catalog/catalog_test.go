@@ -262,11 +262,25 @@ func TestReadParseError(t *testing.T) {
 	th.Equals(t, c, nil)
 }
 
+func createTestCatalog(fs afero.Fs) *catalog {
+	c := newcatalog()
+	item, _ := NewItem(fs, "subfolder/file1.bin")
+	c.Add(*item)
+	item, _ = NewItem(fs, "test2.txt")
+	c.Add(*item)
+	item, _ = NewItem(fs, "test1.txt")
+	c.Add(*item)
+	item, _ = NewItem(fs, "subfolder/file2.bin")
+	c.Add(*item)
+	return c
+}
+
 func TestWriteReadOneLevel(t *testing.T) {
 	basePath, _ := os.Getwd()
 	path := "test_data/subfolder"
 	fs := fsh.CreateSafeFs(filepath.Join(basePath, path))
-	c := Scan(fs)
+	c := createTestCatalog(fs)
+	c.Write(fs, CatalogFileName)
 	c2, err := Read(fs, CatalogFileName)
 	th.Ok(t, err)
 	th.Equals(t, c, c2)
@@ -276,7 +290,8 @@ func TestWriteReadRecursive(t *testing.T) {
 	basePath, _ := os.Getwd()
 	path := "test_data"
 	fs := fsh.CreateSafeFs(filepath.Join(basePath, path))
-	c := Scan(fs)
+	c := createTestCatalog(fs)
+	c.Write(fs, CatalogFileName)
 	c2, err := Read(fs, CatalogFileName)
 	th.Ok(t, err)
 	th.Equals(t, c, c2)
@@ -286,7 +301,7 @@ func TestClone(t *testing.T) {
 	basePath, _ := os.Getwd()
 	path := "test_data"
 	fs := fsh.CreateSafeFs(filepath.Join(basePath, path))
-	c := Scan(fs).(*catalog)
+	c := createTestCatalog(fs)
 	c.DeleteChecksum("1234")
 	clone := c.Clone().(*catalog)
 	th.Equals(t, c, clone)
