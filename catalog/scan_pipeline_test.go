@@ -8,6 +8,7 @@ import (
 	"sync"
 	"testing"
 
+	cth "github.com/mitro42/coback/catalogtesthelper"
 	fsh "github.com/mitro42/coback/fshelper"
 	th "github.com/mitro42/testhelper"
 	"github.com/spf13/afero"
@@ -45,10 +46,10 @@ func TestWalkFolderOneLevel(t *testing.T) {
 	wg.Wait()
 
 	expectedFiles := []string{"file1.bin", "file2.bin"}
-	actualFiles := readStringChannel(files)
+	actualFiles := cth.ReadStringChannel(files)
 
 	expectedSizes := []int64{1024, 1500}
-	actualSizes := readInt64Channel(sizes)
+	actualSizes := cth.ReadInt64Channel(sizes)
 	th.Equals(t, expectedFiles, actualFiles)
 	th.Equals(t, expectedSizes, actualSizes)
 }
@@ -61,10 +62,10 @@ func TestWalkFolderRecursive(t *testing.T) {
 	wg.Wait()
 
 	expectedFiles := []string{"subfolder/file1.bin", "subfolder/file2.bin", "test1.txt", "test2.txt"}
-	actualFiles := readStringChannel(files)
+	actualFiles := cth.ReadStringChannel(files)
 
 	expectedSizes := []int64{1024, 1500, 1160, 1304}
-	actualSizes := readInt64Channel(sizes)
+	actualSizes := cth.ReadInt64Channel(sizes)
 	th.Equals(t, expectedFiles, actualFiles)
 	th.Equals(t, expectedSizes, actualSizes)
 }
@@ -78,10 +79,10 @@ func TestWalkFolderIgnoreCatalog(t *testing.T) {
 	wg.Wait()
 
 	expectedFiles := []string{"subfolder/file1.bin", "subfolder/file2.bin", "test1.txt", "test2.txt"}
-	actualFiles := readStringChannel(files)
+	actualFiles := cth.ReadStringChannel(files)
 
 	expectedSizes := []int64{1024, 1500, 1160, 1304}
-	actualSizes := readInt64Channel(sizes)
+	actualSizes := cth.ReadInt64Channel(sizes)
 	th.Equals(t, expectedFiles, actualFiles)
 	th.Equals(t, expectedSizes, actualSizes)
 }
@@ -113,7 +114,7 @@ func TestFilterNoFilter(t *testing.T) {
 	}
 	close(input)
 	wg.Wait()
-	actual := readStringChannel(output)
+	actual := cth.ReadStringChannel(output)
 	th.Equals(t, expected, actual)
 }
 
@@ -129,7 +130,7 @@ func TestFilterExtension(t *testing.T) {
 	}
 	close(input)
 	wg.Wait()
-	actual := readStringChannel(output)
+	actual := cth.ReadStringChannel(output)
 	th.Equals(t, expected, actual)
 }
 

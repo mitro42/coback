@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	cth "github.com/mitro42/coback/catalogtesthelper"
 	fsh "github.com/mitro42/coback/fshelper"
 	th "github.com/mitro42/testhelper"
 	"github.com/spf13/afero"
@@ -362,18 +363,18 @@ func TestAllItems(t *testing.T) {
 	}
 
 	collection := NewCatalog()
-	actual := readStringChannel(paths(collection.AllItems()))
+	actual := cth.ReadStringChannel(paths(collection.AllItems()))
 	th.Equals(t, []string{}, actual)
 
 	collection.Add(a)
-	actual = readStringChannel(paths(collection.AllItems()))
+	actual = cth.ReadStringChannel(paths(collection.AllItems()))
 	th.Equals(t, []string{a.Path}, actual)
 
 	collection.Add(b)
-	actual = readStringChannel(paths(collection.AllItems()))
+	actual = cth.ReadStringChannel(paths(collection.AllItems()))
 	th.Equals(t, []string{b.Path, a.Path}, actual)
 
 	collection.Add(c)
-	actual = readStringChannel(paths(collection.AllItems()))
+	actual = cth.ReadStringChannel(paths(collection.AllItems()))
 	th.Equals(t, []string{c.Path, b.Path, a.Path}, actual)
 }
