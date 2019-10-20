@@ -36,9 +36,15 @@ func readAndDiffCatalog(fs afero.Fs, name string) (catalog.Catalog, FileSystemDi
 // The fs parameter is treated as the root of the import folder.
 func SyncCatalogWithImportFolder(fs afero.Fs) (catalog.Catalog, error) {
 	fmt.Println("***************** Processing import folder ***************")
-	c, _, err := readAndDiffCatalog(fs, "import")
+	c, diff, err := readAndDiffCatalog(fs, "import")
 	if err != nil {
 		return nil, err
+	}
+
+	if len(diff.Delete) > 0 {
+		c = Scan(fs)
+	} else if len(diff.Add) > 0 {
+		c = ScanAdd(fs, c, diff)
 	}
 
 	return c, nil

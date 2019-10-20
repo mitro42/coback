@@ -19,7 +19,7 @@ func EnsureDirectoryExist(fs afero.Fs, path string) error {
 		return nil
 	}
 	stat, err := fs.Stat(path)
-	if err == nil && !stat.Mode().IsDir() { // the directory's name is already in use by a file
+	if err == nil && !stat.IsDir() { // the directory's name is already in use by a file
 		return fmt.Errorf("Path is a file '%v'", path)
 	} else if err != nil && os.IsNotExist(err) { // the directory doesn't exist
 		err = fs.MkdirAll(path, 0755)

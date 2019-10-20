@@ -31,7 +31,7 @@ type ProgressBar interface {
 type FileSystemDiff struct {
 	Ok     map[string]bool
 	Add    map[string]bool
-	Delete map[catalog.Checksum]bool
+	Delete map[string]bool
 	Update map[string]bool
 }
 
@@ -40,7 +40,7 @@ func NewFileSystemDiff() FileSystemDiff {
 	return FileSystemDiff{
 		Ok:     make(map[string]bool),
 		Add:    make(map[string]bool),
-		Delete: make(map[catalog.Checksum]bool),
+		Delete: make(map[string]bool),
 		Update: make(map[string]bool),
 	}
 }
@@ -310,7 +310,7 @@ func Scan(fs afero.Fs) catalog.Catalog {
 	return ScanFolder(fs, ".", noFilter{})
 }
 
-// fileSizes gets a set of file paths (as returned by Check) and return their file sizes
+// fileSizes gets a set of file paths (as returned by Diff) and return their file sizes
 // the same way as walkFolder
 func fileSizes(fs afero.Fs, paths map[string]bool, wg *sync.WaitGroup) (chan string, <-chan int64) {
 	files := make(chan string, 100000)
@@ -452,7 +452,19 @@ func DiffFiltered(fs afero.Fs, c catalog.Catalog, filter FileFilter) FileSystemD
 	wg.Wait()
 
 	p.Wait()
-	// log.Printf("Diff done, ok: %v, to update: %v, to add: %v", len(ret.Ok), len(ret.Update), len(ret.Add))
+
+	for item := range c.AllItems() {
+		if item.Path == "" {
+			break
+		}
+		if _, ok := ret.Ok[item.Path]; ok {
+			continue
+		}
+		if _, ok := ret.Update[item.Path]; ok {
+			continue
+		}
+		ret.Delete[item.Path] = true
+	}
 	return ret
 }
 
