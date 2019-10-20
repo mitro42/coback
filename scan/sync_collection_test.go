@@ -3,7 +3,6 @@ package scan
 import (
 	"os"
 	"path/filepath"
-	"reflect"
 	"testing"
 
 	"github.com/mitro42/coback/catalog"
