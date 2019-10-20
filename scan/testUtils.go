@@ -2,10 +2,12 @@ package scan
 
 import (
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
 	"github.com/mitro42/coback/catalog"
+	fsh "github.com/mitro42/coback/fshelper"
 	"github.com/spf13/afero"
 )
 
@@ -77,4 +79,22 @@ func createDummyFile(fs afero.Fs, file dummyFileDescription) error {
 		return err
 	}
 	return f.Close()
+}
+
+// createMemFsTestData creates an afero.MemFs and copies to contents of the test_data folder into it.
+// This is necessary to work around an afero limitation:
+// renaming and removing files from a CopyOnWriteFs is not yet supported.
+func createMemFsTestData() afero.Fs {
+	basePath, _ := os.Getwd()
+	memFs := afero.NewMemMapFs()
+	testDataFs := afero.NewBasePathFs(memFs, "test_data")
+	diskFs := fsh.CreateSafeFs(filepath.Join(filepath.Dir(basePath), "test_data"))
+	afero.Walk(diskFs, ".", func(p string, fi os.FileInfo, err error) error {
+		if fi.IsDir() {
+			return nil
+		}
+		fsh.CopyFile(diskFs, p, fi.ModTime().Format(time.RFC3339Nano), testDataFs)
+		return nil
+	})
+	return memFs
 }
