@@ -41,7 +41,7 @@ func SyncCatalogWithImportFolder(fs afero.Fs) (catalog.Catalog, error) {
 		return nil, err
 	}
 
-	if len(diff.Delete) > 0 {
+	if len(diff.Delete) > 0 || len(diff.Update) > 0 {
 		c = Scan(fs)
 	} else if len(diff.Add) > 0 {
 		c = ScanAdd(fs, c, diff)

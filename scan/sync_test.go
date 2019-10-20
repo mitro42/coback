@@ -147,3 +147,30 @@ func TestSyncImporWhenFileAddedAndDeleted(t *testing.T) {
 	checkFilesInCatalog(t, cModified, "test2.txt", 1304, "89b2b34c7b8d232041f0fcc1d213d7bc")
 	checkFilesInCatalog(t, cModified, dummy0.Path, dummy0.Size, dummy0.Md5Sum)
 }
+
+func TestSyncImporWhenFileHashModified(t *testing.T) {
+	fs := createMemFsTestData()
+
+	importFs, err := InitializeFolder(fs, "test_data", "Import")
+	th.Ok(t, err)
+	cOrig, err := SyncCatalogWithImportFolder(importFs)
+	th.Ok(t, err)
+
+	dummy0 := dummies[0]
+	dummy0.Path = "test1.txt"
+
+	err = importFs.Remove("test1.txt")
+	th.Ok(t, err)
+	err = createDummyFile(importFs, dummy0)
+	th.Ok(t, err)
+
+	cModified, err := SyncCatalogWithImportFolder(importFs)
+	th.Ok(t, err)
+
+	th.Assert(t, !reflect.DeepEqual(cOrig, cModified), "The catalogs must be different")
+	th.Equals(t, 4, cModified.Count())
+	th.Equals(t, 0, cModified.DeletedCount())
+	checkFilesInCatalog(t, cModified, "subfolder/file1.bin", 1024, "1cb0bad847fb90f95a767854932ec7c4")
+	checkFilesInCatalog(t, cModified, "test1.txt", dummy0.Size, dummy0.Md5Sum)
+	checkFilesInCatalog(t, cModified, "test2.txt", 1304, "89b2b34c7b8d232041f0fcc1d213d7bc")
+}
