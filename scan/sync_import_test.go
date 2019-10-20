@@ -54,7 +54,7 @@ func TestSyncImportWhenCatalogIsUpToDate(t *testing.T) {
 	th.Equals(t, cSynced2, cRead)
 }
 
-func TestSyncImporWhenFileRemovedFromDisk(t *testing.T) {
+func TestSyncImportWhenFileRemovedFromDisk(t *testing.T) {
 	fs := createMemFsTestData()
 
 	importFs, err := InitializeFolder(fs, "test_data", "Import")
@@ -75,7 +75,7 @@ func TestSyncImporWhenFileRemovedFromDisk(t *testing.T) {
 	checkFilesInCatalog(t, cAfterDelete, "test2.txt", 1304, "89b2b34c7b8d232041f0fcc1d213d7bc")
 }
 
-func TestSyncImporWhenFileAddedToDisk(t *testing.T) {
+func TestSyncImportWhenFileAddedToDisk(t *testing.T) {
 	fs := createMemFsTestData()
 
 	importFs, err := InitializeFolder(fs, "test_data", "Import")
@@ -98,7 +98,7 @@ func TestSyncImporWhenFileAddedToDisk(t *testing.T) {
 	checkFilesInCatalog(t, cAfterAdd, dummy0.Path, dummy0.Size, dummy0.Md5Sum)
 }
 
-func TestSyncImporWhenFileAddedAndDeleted(t *testing.T) {
+func TestSyncImportWhenFileAddedAndDeleted(t *testing.T) {
 	fs := createMemFsTestData()
 
 	importFs, err := InitializeFolder(fs, "test_data", "Import")
@@ -125,7 +125,7 @@ func TestSyncImporWhenFileAddedAndDeleted(t *testing.T) {
 	checkFilesInCatalog(t, cModified, dummy0.Path, dummy0.Size, dummy0.Md5Sum)
 }
 
-func TestSyncImporWhenFileHashModified(t *testing.T) {
+func TestSyncImportWhenFileHashModified(t *testing.T) {
 	fs := createMemFsTestData()
 
 	importFs, err := InitializeFolder(fs, "test_data", "Import")
