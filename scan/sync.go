@@ -19,6 +19,8 @@ func InitializeFolder(baseFs afero.Fs, path string, name string) (afero.Fs, erro
 	return fs, nil
 }
 
+// readAndDiffCatalog attempts to read a catalog. If the catalog is present, it diffs the contents with the file system.
+// If the catalog is missing a full scan is performed and an empty diff is returned.
 func readAndDiffCatalog(fs afero.Fs, name string) (catalog.Catalog, FileSystemDiff, error) {
 	fmt.Println("Reading catalog")
 	c, err := catalog.Read(fs, catalog.CatalogFileName)
@@ -66,9 +68,13 @@ func SyncCatalogWithStagingFolder(fs afero.Fs) (catalog.Catalog, error) {
 // The fs parameter is treated as the root of the Collection folder.
 func SyncCatalogWithCollectionFolder(fs afero.Fs) (catalog.Catalog, error) {
 	fmt.Println("***************** Processing collection folder ***************")
-	c, _, err := readAndDiffCatalog(fs, "collection")
+	c, diff, err := readAndDiffCatalog(fs, "collection")
 	if err != nil {
 		return nil, err
+	}
+
+	for deletedPath := range diff.Delete {
+		c.DeletePath(deletedPath)
 	}
 
 	return c, nil
