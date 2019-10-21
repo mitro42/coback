@@ -75,6 +75,26 @@ func TestAddExisting(t *testing.T) {
 	th.Equals(t, 0, c.DeletedCount())
 }
 
+func TestAddDuplicatedChecksum(t *testing.T) {
+	fs := afero.NewOsFs()
+	path := "../test_data/test1.txt"
+	c := NewCatalog()
+	item1, _ := NewItem(fs, path)
+	item2, _ := NewItem(fs, path)
+	item2.Path = "someotherfolder/someothername.txt"
+	err := c.Add(*item1)
+	th.Ok(t, err)
+	err = c.Add(*item2)
+	th.Ok(t, err)
+
+	th.Equals(t, 2, c.Count())
+	th.Equals(t, 0, c.DeletedCount())
+	actualItems, err := c.ItemsByChecksum(item1.Md5Sum)
+	expectedItems := []Item{*item1, *item2}
+	th.Ok(t, err)
+	th.Equals(t, expectedItems, actualItems)
+}
+
 func TestAddDelete(t *testing.T) {
 	fs := afero.NewOsFs()
 	path := "../test_data/test1.txt"

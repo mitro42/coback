@@ -30,7 +30,8 @@ type Catalog interface {
 	// Item returns the Item with the given path. Returns error if the path doesn't exist.
 	Item(path string) (Item, error)
 	// ItemsByChecksum returns the Items that have the given checksum. Returns error if the no such Item exist.
-	// As a copy of the same file can be stored more than once with different paths, a slice of Items is returned.
+	// As a copy of the same file can be stored more than once with different paths, a slice of Items is returned,
+	// sorted by the path of the items
 	ItemsByChecksum(sum Checksum) ([]Item, error)
 	// AllItems returns a channel with all the items currently in the Catalog in alphabetical order of the path
 	AllItems() <-chan Item
@@ -167,6 +168,9 @@ func (c *catalog) ItemsByChecksum(sum Checksum) ([]Item, error) {
 	for _, path := range paths {
 		ret = append(ret, c.Items[path])
 	}
+	sort.Slice(ret, func(i, j int) bool {
+		return ret[i].Path < ret[j].Path
+	})
 	return ret, nil
 }
 
