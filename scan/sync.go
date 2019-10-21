@@ -77,5 +77,13 @@ func SyncCatalogWithCollectionFolder(fs afero.Fs) (catalog.Catalog, error) {
 		c.DeletePath(deletedPath)
 	}
 
+	for addedPath := range diff.Add {
+		item, err := catalog.NewItem(fs, addedPath)
+		if err != nil {
+			return nil, err
+		}
+		c.Add(*item)
+	}
+
 	return c, nil
 }

@@ -118,3 +118,58 @@ func TestSyncCollectionWhenDuplicateFileRemovedFromDisk(t *testing.T) {
 	checkFilesInCatalog(t, cAfterDelete2, "test2.txt", 1304, "89b2b34c7b8d232041f0fcc1d213d7bc")
 	th.Equals(t, true, cAfterDelete2.IsDeletedChecksum("b3cd1cf6179bca32fd5d76473b129117")) // test1.txt
 }
+
+func TestSyncCollectionWhenFileAddedToDisk(t *testing.T) {
+	fs := createMemFsTestData()
+
+	collectionFs, err := InitializeFolder(fs, "test_data", "Collection")
+	th.Ok(t, err)
+	_, err = SyncCatalogWithCollectionFolder(collectionFs)
+	th.Ok(t, err)
+
+	dummy0 := dummies[0]
+	createDummyFile(collectionFs, dummy0)
+
+	cAfterAdd, err := SyncCatalogWithCollectionFolder(collectionFs)
+	th.Ok(t, err)
+
+	th.Equals(t, 5, cAfterAdd.Count())
+	th.Equals(t, 0, cAfterAdd.DeletedCount())
+	checkFilesInCatalog(t, cAfterAdd, "subfolder/file1.bin", 1024, "1cb0bad847fb90f95a767854932ec7c4")
+	checkFilesInCatalog(t, cAfterAdd, "subfolder/file2.bin", 1500, "f350c40373648527aa95b15786473501")
+	checkFilesInCatalog(t, cAfterAdd, "test1.txt", 1160, "b3cd1cf6179bca32fd5d76473b129117")
+	checkFilesInCatalog(t, cAfterAdd, "test2.txt", 1304, "89b2b34c7b8d232041f0fcc1d213d7bc")
+	checkFilesInCatalog(t, cAfterAdd, dummy0.Path, dummy0.Size, dummy0.Md5Sum)
+}
+
+func TestSyncCollectionWhenFileWithDeletedChecksumAddedToDisk(t *testing.T) {
+	fs := createMemFsTestData()
+
+	collectionFs, err := InitializeFolder(fs, "test_data", "Collection")
+	th.Ok(t, err)
+	cOrig, err := SyncCatalogWithCollectionFolder(collectionFs)
+	th.Ok(t, err)
+
+	dummy0 := dummies[0]
+	cOrig.DeleteChecksum(dummy0.Md5Sum)
+	th.Equals(t, true, cOrig.IsDeletedChecksum(dummy0.Md5Sum))
+	cOrig.Write(collectionFs, catalog.CatalogFileName)
+
+	cRead, err := SyncCatalogWithCollectionFolder(collectionFs)
+	th.Ok(t, err)
+	th.Equals(t, cOrig, cRead)
+
+	err = createDummyFile(collectionFs, dummy0)
+	th.Ok(t, err)
+	cModified, err := SyncCatalogWithCollectionFolder(collectionFs)
+	th.Ok(t, err)
+
+	th.Equals(t, 5, cModified.Count())
+	th.Equals(t, 0, cModified.DeletedCount())
+	checkFilesInCatalog(t, cModified, "subfolder/file1.bin", 1024, "1cb0bad847fb90f95a767854932ec7c4")
+	checkFilesInCatalog(t, cModified, "test1.txt", 1160, "b3cd1cf6179bca32fd5d76473b129117")
+	checkFilesInCatalog(t, cModified, "test2.txt", 1304, "89b2b34c7b8d232041f0fcc1d213d7bc")
+	checkFilesInCatalog(t, cModified, dummy0.Path, dummy0.Size, dummy0.Md5Sum)
+	th.Equals(t, false, cModified.IsDeletedChecksum(dummy0.Md5Sum))
+}
+
