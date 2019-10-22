@@ -173,3 +173,64 @@ func TestSyncCollectionWhenFileWithDeletedChecksumAddedToDisk(t *testing.T) {
 	th.Equals(t, false, cModified.IsDeletedChecksum(dummy0.Md5Sum))
 }
 
+func TestSyncCollectionWhenFileModifiedOnDisk(t *testing.T) {
+	fs := createMemFsTestData()
+
+	collectionFs, err := InitializeFolder(fs, "test_data", "Collection")
+	th.Ok(t, err)
+	_, err = SyncCatalogWithCollectionFolder(collectionFs)
+	th.Ok(t, err)
+
+	// overwrite test1.txt with the dummy0
+	dummy0 := dummies[0]
+	dummy0.Path = "test1.txt"
+	err = collectionFs.Remove("test1.txt")
+	th.Ok(t, err)
+	err = createDummyFile(collectionFs, dummy0)
+	th.Ok(t, err)
+
+	cModified, err := SyncCatalogWithCollectionFolder(collectionFs)
+	th.Ok(t, err)
+
+	th.Equals(t, 4, cModified.Count())
+	th.Equals(t, 0, cModified.DeletedCount())
+	checkFilesInCatalog(t, cModified, "subfolder/file1.bin", 1024, "1cb0bad847fb90f95a767854932ec7c4")
+	checkFilesInCatalog(t, cModified, "subfolder/file2.bin", 1500, "f350c40373648527aa95b15786473501")
+	checkFilesInCatalog(t, cModified, "test1.txt", dummy0.Size, dummy0.Md5Sum)
+	checkFilesInCatalog(t, cModified, "test2.txt", 1304, "89b2b34c7b8d232041f0fcc1d213d7bc")
+}
+
+func TestSyncCollectionWhenFileModifiedOnDiskToHaveADeletedCheckSum(t *testing.T) {
+	fs := createMemFsTestData()
+
+	collectionFs, err := InitializeFolder(fs, "test_data", "Collection")
+	th.Ok(t, err)
+	cOrig, err := SyncCatalogWithCollectionFolder(collectionFs)
+	th.Ok(t, err)
+
+	// delete the checksum of dummy0 and save new catalog
+	dummy0 := dummies[0]
+	cOrig.DeleteChecksum(dummy0.Md5Sum)
+	th.Equals(t, true, cOrig.IsDeletedChecksum(dummy0.Md5Sum))
+	cOrig.Write(collectionFs, catalog.CatalogFileName)
+	cRead, err := SyncCatalogWithCollectionFolder(collectionFs)
+	th.Ok(t, err)
+	th.Equals(t, cOrig, cRead)
+
+	// overwrite test1.txt with the dummy0
+	dummy0.Path = "test1.txt"
+	err = collectionFs.Remove("test1.txt")
+	th.Ok(t, err)
+	err = createDummyFile(collectionFs, dummy0)
+	th.Ok(t, err)
+
+	cModified, err := SyncCatalogWithCollectionFolder(collectionFs)
+	th.Ok(t, err)
+
+	th.Equals(t, 4, cModified.Count())
+	th.Equals(t, 0, cModified.DeletedCount())
+	checkFilesInCatalog(t, cModified, "subfolder/file1.bin", 1024, "1cb0bad847fb90f95a767854932ec7c4")
+	checkFilesInCatalog(t, cModified, "subfolder/file2.bin", 1500, "f350c40373648527aa95b15786473501")
+	checkFilesInCatalog(t, cModified, "test1.txt", dummy0.Size, dummy0.Md5Sum)
+	checkFilesInCatalog(t, cModified, "test2.txt", 1304, "89b2b34c7b8d232041f0fcc1d213d7bc")
+}

@@ -112,10 +112,8 @@ func removeItem(slice []string, v string) []string {
 func (c *catalog) Set(newItem Item) error {
 	if item, ok := c.Items[newItem.Path]; ok {
 		origChecksum := c.Items[item.Path].Md5Sum
+		delete(c.Items, item.Path)
 		c.checksumToPaths[origChecksum] = removeItem(c.checksumToPaths[origChecksum], item.Path)
-		c.checksumToPaths[newItem.Md5Sum] = append(c.checksumToPaths[newItem.Md5Sum], newItem.Path)
-		c.Items[item.Path] = newItem
-		return nil
 	}
 	return c.Add(newItem)
 }

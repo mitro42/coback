@@ -82,7 +82,21 @@ func SyncCatalogWithCollectionFolder(fs afero.Fs) (catalog.Catalog, error) {
 		if err != nil {
 			return nil, err
 		}
-		c.Add(*item)
+		err = c.Add(*item)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	for modifiedPath := range diff.Update {
+		item, err := catalog.NewItem(fs, modifiedPath)
+		if err != nil {
+			return nil, err
+		}
+		err = c.Set(*item)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return c, nil
