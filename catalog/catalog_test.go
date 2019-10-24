@@ -422,3 +422,21 @@ func TestAllItems(t *testing.T) {
 	actual = cth.ReadStringChannel(paths(collection.AllItems()))
 	th.Equals(t, []string{c.Path, b.Path, a.Path}, actual)
 }
+
+func TestIsKnownChecksum(t *testing.T) {
+	item1 := Item{Path: "some/path/to/a", Md5Sum: "a", Size: 42}
+	item2 := Item{Path: "some/other/b", Md5Sum: "b", Size: 213456}
+
+	c := NewCatalog()
+	th.Equals(t, false, c.IsKnownChecksum(item1.Md5Sum))
+	th.Equals(t, false, c.IsKnownChecksum(item2.Md5Sum))
+	c.Add(item1)
+	th.Equals(t, true, c.IsKnownChecksum(item1.Md5Sum))
+	th.Equals(t, false, c.IsKnownChecksum(item2.Md5Sum))
+	c.DeleteChecksum(item2.Md5Sum)
+	th.Equals(t, true, c.IsKnownChecksum(item1.Md5Sum))
+	th.Equals(t, true, c.IsKnownChecksum(item2.Md5Sum))
+	c.DeleteChecksum(item1.Md5Sum)
+	th.Equals(t, true, c.IsKnownChecksum(item1.Md5Sum))
+	th.Equals(t, true, c.IsKnownChecksum(item2.Md5Sum))
+}
