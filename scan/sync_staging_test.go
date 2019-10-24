@@ -60,8 +60,6 @@ func TestSyncStagingStartFileIsAlreadyInCollection(t *testing.T) {
 	th.Equals(t, nil, cRead)
 }
 
-////////////////////////////////////
-
 func TestSyncStagingStartFileIsAlreadyDeletedInCollection(t *testing.T) {
 	collectionCatalog := catalog.NewCatalog()
 	basePath, _ := os.Getwd()
@@ -78,3 +76,25 @@ func TestSyncStagingStartFileIsAlreadyDeletedInCollection(t *testing.T) {
 	th.Equals(t, nil, cRead)
 }
 
+func TestSyncStagingWhenCatalogIsUpToDate(t *testing.T) {
+	collectionCatalog := catalog.NewCatalog()
+	basePath, _ := os.Getwd()
+	fs := fsh.CreateSafeFs(filepath.Dir(basePath))
+	stagingFs, err := InitializeFolder(fs, "test_data", "Staging")
+	th.Ok(t, err)
+	cSynced, err := SyncCatalogWithStagingFolder(stagingFs, collectionCatalog)
+	cSynced.DeleteChecksum("a")
+	cSynced.DeleteChecksum("42")
+	cSynced.Write(stagingFs, catalog.CatalogFileName)
+	th.Ok(t, err)
+	cRead, err := catalog.Read(stagingFs, catalog.CatalogFileName)
+	th.Ok(t, err)
+	cSynced2, err := SyncCatalogWithStagingFolder(stagingFs, collectionCatalog)
+	th.Ok(t, err)
+
+	th.Equals(t, cSynced, cRead)
+	th.Equals(t, cSynced2, cRead)
+	th.Equals(t, true, cSynced2.IsDeletedChecksum("a"))
+	th.Equals(t, true, cSynced2.IsDeletedChecksum("42"))
+	th.Equals(t, false, cSynced2.IsDeletedChecksum("43"))
+}
