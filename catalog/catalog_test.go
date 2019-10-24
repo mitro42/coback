@@ -440,3 +440,43 @@ func TestIsKnownChecksum(t *testing.T) {
 	th.Equals(t, true, c.IsKnownChecksum(item1.Md5Sum))
 	th.Equals(t, true, c.IsKnownChecksum(item2.Md5Sum))
 }
+
+func TestForgetPath(t *testing.T) {
+	basePath, _ := os.Getwd()
+	path := "../test_data"
+	fs := fsh.CreateSafeFs(filepath.Join(basePath, path))
+	item1, err := NewItem(fs, "test1.txt")
+	err = fsh.CopyFile(fs, item1.Path, item1.ModificationTime, afero.NewBasePathFs(fs, "subfolder"))
+	th.Ok(t, err)
+	itemCopy, err := NewItem(fs, "subfolder/test1.txt")
+	th.Ok(t, err)
+	item2, err := NewItem(fs, "subfolder/file1.bin")
+	th.Ok(t, err)
+
+	c := createTestCatalog(fs)
+	c.Add(*itemCopy)
+	th.Equals(t, true, c.IsKnownChecksum(item1.Md5Sum))
+	th.Equals(t, false, c.IsDeletedChecksum(item1.Md5Sum))
+	th.Equals(t, true, c.IsKnownChecksum(item2.Md5Sum))
+	th.Equals(t, false, c.IsDeletedChecksum(item2.Md5Sum))
+
+	c.ForgetPath(item1.Path)
+	th.Equals(t, true, c.IsKnownChecksum(item1.Md5Sum)) // a copy is still there
+	th.Equals(t, false, c.IsDeletedChecksum(item1.Md5Sum))
+
+	storedCopy, err := c.Item(itemCopy.Path)
+	th.Ok(t, err)
+	th.Equals(t, *itemCopy, storedCopy)
+
+	c.ForgetPath(item2.Path)
+	th.Equals(t, false, c.IsKnownChecksum(item2.Md5Sum))
+	th.Equals(t, false, c.IsDeletedChecksum(item2.Md5Sum))
+
+	storedItem1, err := c.Item(item1.Path)
+	th.NokPrefix(t, err, "No such file")
+	th.Equals(t, Item{}, storedItem1)
+
+	storedItem2, err := c.Item(item2.Path)
+	th.NokPrefix(t, err, "No such file")
+	th.Equals(t, Item{}, storedItem2)
+}

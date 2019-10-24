@@ -25,6 +25,9 @@ type Catalog interface {
 	// If an item with the same path already exists it is replaced with the new item.
 	// Simply adds the item if the path it is not yet in the Catalog.
 	Set(item Item) error
+	// ForgetPath completely removes and item with the given path from the catalog. It's hash will not be stored as deleted,
+	// and other items will not be removed even if they have the same hash.
+	ForgetPath(path string)
 	// DeletePath removes the path from the Catalog. If there are no other items stored with the same hash, the hash is stored as deleted
 	DeletePath(path string)
 	// Item returns the Item with the given path. Returns error if the path doesn't exist.
@@ -209,6 +212,20 @@ func (c *catalog) IsKnownChecksum(sum Checksum) bool {
 		return true
 	}
 	return false
+}
+
+func (c *catalog) ForgetPath(path string) {
+	item, ok := c.Items[path]
+	if !ok {
+		return
+	}
+
+	if len(c.checksumToPaths[item.Md5Sum]) == 1 {
+		delete(c.checksumToPaths, item.Md5Sum)
+	} else {
+		c.checksumToPaths[item.Md5Sum] = removeItem(c.checksumToPaths[item.Md5Sum], item.Path)
+	}
+	delete(c.Items, item.Path)
 }
 
 func (c *catalog) AllItems() <-chan Item {
