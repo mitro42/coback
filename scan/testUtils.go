@@ -81,7 +81,7 @@ func createDummyFile(fs afero.Fs, file dummyFileDescription) error {
 	return f.Close()
 }
 
-// createMemFsTestData creates an afero.MemFs and copies to contents of the test_data folder into it.
+// createMemFsTestData creates an afero.MemFs and copies the contents of the test_data folder into it.
 // This is necessary to work around an afero limitation:
 // renaming and removing files from a CopyOnWriteFs is not yet supported.
 func createMemFsTestData() afero.Fs {
