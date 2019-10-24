@@ -44,23 +44,23 @@ func main() {
 		os.Exit(-2)
 	}
 
-	stagingFs, err := scan.InitializeFolder(baseFs, os.Args[2], "Staging")
-	if err != nil {
-		fmt.Printf("Cannot initialize folder: %v\n", err)
-		os.Exit(-2)
-	}
-	stagingCatalog, err := scan.SyncCatalogWithStagingFolder(stagingFs)
-	if err != nil {
-		fmt.Printf("Cannot initialize folder: %v\n", err)
-		os.Exit(-2)
-	}
-
 	collectionFs, err := scan.InitializeFolder(baseFs, os.Args[3], "Collection")
 	if err != nil {
 		fmt.Printf("Cannot initialize folder: %v\n", err)
 		os.Exit(-2)
 	}
 	collectionCatalog, err := scan.SyncCatalogWithCollectionFolder(collectionFs)
+	if err != nil {
+		fmt.Printf("Cannot initialize folder: %v\n", err)
+		os.Exit(-2)
+	}
+
+	stagingFs, err := scan.InitializeFolder(baseFs, os.Args[2], "Staging")
+	if err != nil {
+		fmt.Printf("Cannot initialize folder: %v\n", err)
+		os.Exit(-2)
+	}
+	stagingCatalog, err := scan.SyncCatalogWithStagingFolder(stagingFs, collectionCatalog)
 	if err != nil {
 		fmt.Printf("Cannot initialize folder: %v\n", err)
 		os.Exit(-2)
