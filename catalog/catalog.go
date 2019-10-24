@@ -44,6 +44,8 @@ type Catalog interface {
 	// IsDeletedChecksum returns true all the items with the given checksum are marked as deleted.
 	// Returns error if the path doesn't exist or some items are marked as deleted, but not all of them.
 	IsDeletedChecksum(sum Checksum) bool
+	// IsKnownChecksum returns true is the checksum is in the Catalog, either as an actual item or as a checksum marked as deleted
+	IsKnownChecksum(sum Checksum) bool
 	// Write writes the Catalog as a file at the given path and file system
 	Write(fs afero.Fs, path string) error
 	// Clone creates a deep copy of the Catalog
@@ -195,6 +197,18 @@ func (c *catalog) FilterNew(other Catalog) Catalog {
 		ret.Add(item)
 	}
 	return ret
+}
+
+func (c *catalog) IsKnownChecksum(sum Checksum) bool {
+	_, ok := c.checksumToPaths[sum]
+	if ok {
+		return true
+	}
+	_, ok = c.DeletedChecksums[sum]
+	if ok {
+		return true
+	}
+	return false
 }
 
 func (c *catalog) AllItems() <-chan Item {

@@ -54,11 +54,22 @@ func SyncCatalogWithImportFolder(fs afero.Fs) (catalog.Catalog, error) {
 
 // SyncCatalogWithStagingFolder makes sure that the catalog in the folder is in sync with the file system
 // The fs parameter is treated as the root of the staging folder.
-func SyncCatalogWithStagingFolder(fs afero.Fs) (catalog.Catalog, error) {
+func SyncCatalogWithStagingFolder(fs afero.Fs, collection catalog.Catalog) (catalog.Catalog, error) {
 	fmt.Println("***************** Processing staging folder ***************")
 	c, _, err := readAndDiffCatalog(fs, "staging")
 	if err != nil {
 		return nil, err
+	}
+
+	for item := range c.AllItems() {
+		if collection.IsDeletedChecksum(item.Md5Sum) {
+			fs.Remove(catalog.CatalogFileName)
+			return nil, fmt.Errorf("File is already deleted from the collection: %v", item.Path)
+		}
+		if collection.IsKnownChecksum(item.Md5Sum) {
+			fs.Remove(catalog.CatalogFileName)
+			return nil, fmt.Errorf("File is already in the collection: %v", item.Path)
+		}
 	}
 
 	return c, nil
