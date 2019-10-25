@@ -76,6 +76,26 @@ func SyncCatalogWithStagingFolder(fs afero.Fs, collection catalog.Catalog) (cata
 		c.DeletePath(deletedPath)
 	}
 
+	for addedPath := range diff.Add {
+		item, err := catalog.NewItem(fs, addedPath)
+		if err != nil {
+			return nil, errors.Wrap(err, "Failed to check new file")
+		}
+		if collection.IsDeletedChecksum(item.Md5Sum) {
+			return nil, fmt.Errorf("File is already deleted from the collection: %v", item.Path)
+		}
+		if collection.IsKnownChecksum(item.Md5Sum) {
+			return nil, fmt.Errorf("File is already in the collection: %v", item.Path)
+		}
+		if c.IsDeletedChecksum(item.Md5Sum) {
+			return nil, fmt.Errorf("File is already deleted from the staging folder: %v", item.Path)
+		}
+		if c.IsKnownChecksum(item.Md5Sum) {
+			return nil, fmt.Errorf("File is already in the staging folder: %v", item.Path)
+		}
+		c.Add(*item)
+	}
+
 	for item := range c.AllItems() {
 		if collection.IsDeletedChecksum(item.Md5Sum) {
 			fs.Remove(catalog.CatalogFileName)

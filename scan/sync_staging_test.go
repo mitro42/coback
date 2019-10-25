@@ -157,6 +157,104 @@ func TestSyncStagingWhenFileNotInCollectionIsDeletedFromStaging(t *testing.T) {
 	th.Equals(t, collectionClone, collectionCatalog)
 }
 
+func TestSyncStaginNewFileThatIsAlreadyInCollection(t *testing.T) {
+	collectionCatalog := catalog.NewCatalog()
+	fs := createMemFsTestData()
+	stagingFs, err := InitializeFolder(fs, "test_data", "Staging")
+	cOrig := Scan(stagingFs)
+	dummy0 := dummies[0]
+	createDummyFile(stagingFs, dummy0)
+
+	item, err := catalog.NewItem(stagingFs, dummy0.Path)
+	th.Ok(t, err)
+	collectionCatalog.Add(*item)
+
+	c, err := SyncCatalogWithStagingFolder(stagingFs, collectionCatalog)
+	th.NokPrefix(t, err, "File is already in the collection")
+	th.Equals(t, nil, c)
+
+	cRead, err := catalog.Read(stagingFs, catalog.CatalogFileName)
+	th.Ok(t, err)
+	th.Equals(t, cOrig, cRead)
+}
+
+func TestSyncStaginNewFileThatIsAlreadyDeletedInCollection(t *testing.T) {
+	collectionCatalog := catalog.NewCatalog()
+	fs := createMemFsTestData()
+	stagingFs, err := InitializeFolder(fs, "test_data", "Staging")
+	cOrig := Scan(stagingFs)
+	dummy0 := dummies[0]
+	createDummyFile(stagingFs, dummy0)
+
+	collectionCatalog.DeleteChecksum(dummy0.Md5Sum)
+
+	c, err := SyncCatalogWithStagingFolder(stagingFs, collectionCatalog)
+	th.NokPrefix(t, err, "File is already deleted from the collection")
+	th.Equals(t, nil, c)
+
+	cRead, err := catalog.Read(stagingFs, catalog.CatalogFileName)
+	th.Ok(t, err)
+	th.Equals(t, cOrig, cRead)
+}
+
+func TestSyncStaginNewFileThatIsAlreadyInStaging(t *testing.T) {
+	collectionCatalog := catalog.NewCatalog()
+	fs := createMemFsTestData()
+	stagingFs, err := InitializeFolder(fs, "test_data", "Staging")
+	cOrig := Scan(stagingFs)
+
+	item, err := catalog.NewItem(stagingFs, "test1.txt")
+	th.Ok(t, err)
+	fsh.CopyFile(stagingFs, item.Path, item.ModificationTime, afero.NewBasePathFs(stagingFs, "subfolder"))
+
+	c, err := SyncCatalogWithStagingFolder(stagingFs, collectionCatalog)
+	th.NokPrefix(t, err, "File is already in the staging folder")
+	th.Equals(t, nil, c)
+
+	cRead, err := catalog.Read(stagingFs, catalog.CatalogFileName)
+	th.Ok(t, err)
+	th.Equals(t, cOrig, cRead)
+}
+
+func TestSyncStaginNewFileThatIsAlreadyDeletedInStaging(t *testing.T) {
+	collectionCatalog := catalog.NewCatalog()
+	fs := createMemFsTestData()
+	stagingFs, err := InitializeFolder(fs, "test_data", "Staging")
+	cOrig := Scan(stagingFs)
+	dummy0 := dummies[0]
+	createDummyFile(stagingFs, dummy0)
+
+	cOrig.DeleteChecksum(dummy0.Md5Sum)
+	cOrig.Write(stagingFs, catalog.CatalogFileName)
+
+	cSynced, err := SyncCatalogWithStagingFolder(stagingFs, collectionCatalog)
+	th.NokPrefix(t, err, "File is already deleted from the staging folder")
+	th.Equals(t, nil, cSynced)
+
+	cRead, err := catalog.Read(stagingFs, catalog.CatalogFileName)
+	th.Ok(t, err)
+	th.Equals(t, cOrig, cRead)
+}
+
+func TestSyncStaginNewFileThatIsNotKnownInCollectionOrStaging(t *testing.T) {
+	collectionCatalog := catalog.NewCatalog()
+	fs := createMemFsTestData()
+	stagingFs, err := InitializeFolder(fs, "test_data", "Staging")
+	cOrig := Scan(stagingFs)
+	dummy0 := dummies[0]
+	createDummyFile(stagingFs, dummy0)
+
+	cSynced, err := SyncCatalogWithStagingFolder(stagingFs, collectionCatalog)
+	th.Ok(t, err)
+	cRead, err := catalog.Read(stagingFs, catalog.CatalogFileName)
+	th.Ok(t, err)
+	th.Equals(t, cOrig, cRead)
+	item, err := catalog.NewItem(stagingFs, dummy0.Path)
+	th.Ok(t, err)
+	cOrig.Add(*item)
+	th.Equals(t, cOrig, cSynced)
+}
+
 ////////////////////////////////////
 
 // func TestSyncStagingWhenNonDuplicateFileRemovedFromDisk(t *testing.T) {
