@@ -265,14 +265,14 @@ func updateAndSaveCatalog(fs afero.Fs, c catalog.Catalog, catalogPath string, it
 		}
 		if time.Since(lastSave).Seconds() > 5.0 {
 			lastSave = time.Now()
-			err := ret.Write(fs, catalogPath)
+			err := ret.Write(fs)
 			if err != nil {
 				log.Printf("Failed to update catalog: %v", err)
 			}
 		}
 	}
 
-	err := ret.Write(fs, catalogPath)
+	err := ret.Write(fs)
 	if err != nil {
 		log.Printf("Failed to update catalog: %v", err)
 	}

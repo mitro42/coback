@@ -49,8 +49,10 @@ type Catalog interface {
 	IsDeletedChecksum(sum Checksum) bool
 	// IsKnownChecksum returns true is the checksum is in the Catalog, either as an actual item or as a checksum marked as deleted
 	IsKnownChecksum(sum Checksum) bool
-	// Write writes the Catalog as a file at the given path and file system
-	Write(fs afero.Fs, path string) error
+	// WriteAs writes the Catalog as a file at the given path and file system
+	WriteAs(fs afero.Fs, path string) error
+	// Write writes the Catalog as 'coback.catalog' in the root of the file system
+	Write(fs afero.Fs) error
 	// Clone creates a deep copy of the Catalog
 	Clone() Catalog
 	// FilterNew returns a catalog that contains all items that are present in this Catalog, but not in the other
@@ -182,7 +184,11 @@ func (c *catalog) IsDeletedChecksum(sum Checksum) bool {
 	return ok && deleted
 }
 
-func (c *catalog) Write(fs afero.Fs, path string) error {
+func (c *catalog) Write(fs afero.Fs) error {
+	return c.WriteAs(fs, CatalogFileName)
+}
+
+func (c *catalog) WriteAs(fs afero.Fs, path string) error {
 	json, _ := json.Marshal(c)
 	err := afero.WriteFile(fs, path, json, 0644)
 	return errors.Wrapf(err, "Cannot save catalog to file: '%v'", path)

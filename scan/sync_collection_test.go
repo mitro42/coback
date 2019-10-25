@@ -153,7 +153,7 @@ func TestSyncCollectionWhenFileWithDeletedChecksumAddedToDisk(t *testing.T) {
 	dummy0 := dummies[0]
 	cOrig.DeleteChecksum(dummy0.Md5Sum)
 	th.Equals(t, true, cOrig.IsDeletedChecksum(dummy0.Md5Sum))
-	cOrig.Write(collectionFs, catalog.CatalogFileName)
+	cOrig.Write(collectionFs)
 
 	cRead, err := SyncCatalogWithCollectionFolder(collectionFs)
 	th.Ok(t, err)
@@ -212,7 +212,7 @@ func TestSyncCollectionWhenFileModifiedOnDiskToHaveADeletedCheckSum(t *testing.T
 	dummy0 := dummies[0]
 	cOrig.DeleteChecksum(dummy0.Md5Sum)
 	th.Equals(t, true, cOrig.IsDeletedChecksum(dummy0.Md5Sum))
-	cOrig.Write(collectionFs, catalog.CatalogFileName)
+	cOrig.Write(collectionFs)
 	cRead, err := SyncCatalogWithCollectionFolder(collectionFs)
 	th.Ok(t, err)
 	th.Equals(t, cOrig, cRead)

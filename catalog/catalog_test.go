@@ -309,7 +309,7 @@ func TestWriteReadOneLevel(t *testing.T) {
 	path := "../test_data/subfolder"
 	fs := fsh.CreateSafeFs(filepath.Join(basePath, path))
 	c := createOneLevelTestCatalog(fs)
-	c.Write(fs, CatalogFileName)
+	c.Write(fs)
 	c2, err := Read(fs, CatalogFileName)
 	th.Ok(t, err)
 	th.Equals(t, c, c2)
@@ -320,8 +320,20 @@ func TestWriteReadRecursive(t *testing.T) {
 	path := "../test_data"
 	fs := fsh.CreateSafeFs(filepath.Join(basePath, path))
 	c := createTestCatalog(fs)
-	c.Write(fs, CatalogFileName)
+	c.Write(fs)
 	c2, err := Read(fs, CatalogFileName)
+	th.Ok(t, err)
+	th.Equals(t, c, c2)
+}
+
+func TestWriteReadRecursiveCustomName(t *testing.T) {
+	basePath, _ := os.Getwd()
+	path := "../test_data"
+	fs := fsh.CreateSafeFs(filepath.Join(basePath, path))
+	c := createTestCatalog(fs)
+	name := "not_the_standard_name"
+	c.WriteAs(fs, name)
+	c2, err := Read(fs, name)
 	th.Ok(t, err)
 	th.Equals(t, c, c2)
 }

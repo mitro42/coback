@@ -85,7 +85,7 @@ func TestSyncStagingWhenCatalogIsUpToDate(t *testing.T) {
 	cSynced, err := SyncCatalogWithStagingFolder(stagingFs, collectionCatalog)
 	cSynced.DeleteChecksum("a")
 	cSynced.DeleteChecksum("42")
-	cSynced.Write(stagingFs, catalog.CatalogFileName)
+	cSynced.Write(stagingFs)
 	th.Ok(t, err)
 	cRead, err := catalog.Read(stagingFs, catalog.CatalogFileName)
 	th.Ok(t, err)
@@ -225,7 +225,7 @@ func TestSyncStaginNewFileThatIsAlreadyDeletedInStaging(t *testing.T) {
 	createDummyFile(stagingFs, dummy0)
 
 	cOrig.DeleteChecksum(dummy0.Md5Sum)
-	cOrig.Write(stagingFs, catalog.CatalogFileName)
+	cOrig.Write(stagingFs)
 
 	cSynced, err := SyncCatalogWithStagingFolder(stagingFs, collectionCatalog)
 	th.NokPrefix(t, err, "File is already deleted from the staging folder")
@@ -265,7 +265,7 @@ func TestSyncStaginFileChanged(t *testing.T) {
 	th.Ok(t, err)
 	item.Md5Sum = "42"
 	cOrig.Set(*item)
-	cOrig.Write(stagingFs, catalog.CatalogFileName)
+	cOrig.Write(stagingFs)
 
 	cSynced, err := SyncCatalogWithStagingFolder(stagingFs, collectionCatalog)
 	th.NokPrefix(t, err, "A file already in the staging folder has been modified")
