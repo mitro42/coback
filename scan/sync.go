@@ -5,12 +5,16 @@ import (
 
 	"github.com/mitro42/coback/catalog"
 	fsh "github.com/mitro42/coback/fshelper"
+	"github.com/pkg/errors"
 	"github.com/spf13/afero"
 )
 
 // InitializeFolder prepares a folder to be used by CoBack.
 // Creates the folder if necessary and returns an afero.Fs which roots at the specified folder.
 func InitializeFolder(baseFs afero.Fs, path string, name string) (afero.Fs, error) {
+	if path == "." {
+		return baseFs, nil
+	}
 	err := fsh.EnsureDirectoryExist(baseFs, path)
 	if err != nil {
 		return nil, err
@@ -56,9 +60,20 @@ func SyncCatalogWithImportFolder(fs afero.Fs) (catalog.Catalog, error) {
 // The fs parameter is treated as the root of the staging folder.
 func SyncCatalogWithStagingFolder(fs afero.Fs, collection catalog.Catalog) (catalog.Catalog, error) {
 	fmt.Println("***************** Processing staging folder ***************")
-	c, _, err := readAndDiffCatalog(fs, "staging")
+	c, diff, err := readAndDiffCatalog(fs, "staging")
 	if err != nil {
 		return nil, err
+	}
+
+	for deletedPath := range diff.Delete {
+		item, err := c.Item(deletedPath)
+		if err != nil {
+			return nil, errors.Wrap(err, "Failed to remove deleted file")
+		}
+		if collection.IsKnownChecksum(item.Md5Sum) {
+			c.ForgetPath(item.Path)
+		}
+		c.DeletePath(deletedPath)
 	}
 
 	for item := range c.AllItems() {
