@@ -118,7 +118,7 @@ func (c *catalog) Set(newItem Item) error {
 	if item, ok := c.Items[newItem.Path]; ok {
 		origChecksum := c.Items[item.Path].Md5Sum
 		delete(c.Items, item.Path)
-		c.checksumToPaths[origChecksum] = removeItem(c.checksumToPaths[origChecksum], item.Path)
+		c.removeChecksumToPathMapping(origChecksum, item.Path)
 	}
 	return c.Add(newItem)
 }
@@ -132,7 +132,7 @@ func (c *catalog) DeletePath(path string) {
 	if len(paths) == 1 {
 		c.DeletedChecksums[item.Md5Sum] = true
 	}
-	c.checksumToPaths[item.Md5Sum] = removeItem(c.checksumToPaths[item.Md5Sum], item.Path)
+	c.removeChecksumToPathMapping(item.Md5Sum, item.Path)
 	delete(c.Items, path)
 }
 
@@ -214,17 +214,20 @@ func (c *catalog) IsKnownChecksum(sum Checksum) bool {
 	return false
 }
 
+func (c *catalog) removeChecksumToPathMapping(sum Checksum, path string) {
+	if len(c.checksumToPaths[sum]) == 1 {
+		delete(c.checksumToPaths, sum)
+	} else {
+		c.checksumToPaths[sum] = removeItem(c.checksumToPaths[sum], path)
+	}
+}
+
 func (c *catalog) ForgetPath(path string) {
 	item, ok := c.Items[path]
 	if !ok {
 		return
 	}
-
-	if len(c.checksumToPaths[item.Md5Sum]) == 1 {
-		delete(c.checksumToPaths, item.Md5Sum)
-	} else {
-		c.checksumToPaths[item.Md5Sum] = removeItem(c.checksumToPaths[item.Md5Sum], item.Path)
-	}
+	c.removeChecksumToPathMapping(item.Md5Sum, item.Path)
 	delete(c.Items, item.Path)
 }
 
