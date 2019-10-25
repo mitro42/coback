@@ -96,6 +96,10 @@ func SyncCatalogWithStagingFolder(fs afero.Fs, collection catalog.Catalog) (cata
 		c.Add(*item)
 	}
 
+	for addedPath := range diff.Update { // in later versions all modified files will be returned in some form
+		return nil, fmt.Errorf("A file already in the staging folder has been modified: %v", addedPath)
+	}
+
 	for item := range c.AllItems() {
 		if collection.IsDeletedChecksum(item.Md5Sum) {
 			fs.Remove(catalog.CatalogFileName)
