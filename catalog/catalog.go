@@ -38,6 +38,8 @@ type Catalog interface {
 	ItemsByChecksum(sum Checksum) ([]Item, error)
 	// AllItems returns a channel with all the items currently in the Catalog in alphabetical order of the path
 	AllItems() <-chan Item
+	// DeletedChecksums returns a channel with all the deleted checksums in alphabetical order
+	DeletedChecksums() <-chan Checksum
 	// Count returns the number of items stored in the Catalog
 	Count() int
 	// DeletedCount returns the number of items stored in the Catalog which are marked as deleted
@@ -61,17 +63,17 @@ type Catalog interface {
 }
 
 type catalog struct {
-	State            catalogState      `json:"state"`
-	Items            map[string]Item   `json:"content"`
-	DeletedChecksums map[Checksum]bool `json:"deleted_checksums"`
-	checksumToPaths  map[Checksum][]string
+	State           catalogState      `json:"state"`
+	Items           map[string]Item   `json:"content"`
+	Deleted         map[Checksum]bool `json:"deleted_checksums"`
+	checksumToPaths map[Checksum][]string
 }
 
 func newcatalog() *catalog {
 	return &catalog{
-		Items:            make(map[string]Item),
-		checksumToPaths:  make(map[Checksum][]string),
-		DeletedChecksums: make(map[Checksum]bool),
+		Items:           make(map[string]Item),
+		checksumToPaths: make(map[Checksum][]string),
+		Deleted:         make(map[Checksum]bool),
 	}
 }
 
@@ -88,8 +90,8 @@ func (c *catalog) Clone() Catalog {
 	for k, v := range c.checksumToPaths {
 		clone.checksumToPaths[k] = v
 	}
-	for k, v := range c.DeletedChecksums {
-		clone.DeletedChecksums[k] = v
+	for k, v := range c.Deleted {
+		clone.Deleted[k] = v
 	}
 	return clone
 }
@@ -99,7 +101,7 @@ func (c *catalog) Add(item Item) error {
 		return fmt.Errorf("File is already in the catalog: '%v'", item.Path)
 	}
 
-	delete(c.DeletedChecksums, item.Md5Sum)
+	delete(c.Deleted, item.Md5Sum)
 	c.Items[item.Path] = item
 	c.checksumToPaths[item.Md5Sum] = append(c.checksumToPaths[item.Md5Sum], item.Path)
 
@@ -132,7 +134,7 @@ func (c *catalog) DeletePath(path string) {
 	}
 	paths, _ := c.checksumToPaths[item.Md5Sum]
 	if len(paths) == 1 {
-		c.DeletedChecksums[item.Md5Sum] = true
+		c.Deleted[item.Md5Sum] = true
 	}
 	c.removeChecksumToPathMapping(item.Md5Sum, item.Path)
 	delete(c.Items, path)
@@ -145,7 +147,7 @@ func (c *catalog) DeleteChecksum(sum Checksum) {
 			delete(c.Items, p)
 		}
 	}
-	c.DeletedChecksums[sum] = true
+	c.Deleted[sum] = true
 }
 
 func (c *catalog) Item(path string) (Item, error) {
@@ -161,7 +163,7 @@ func (c *catalog) Count() int {
 }
 
 func (c *catalog) DeletedCount() int {
-	return len(c.DeletedChecksums)
+	return len(c.Deleted)
 }
 
 func (c *catalog) ItemsByChecksum(sum Checksum) ([]Item, error) {
@@ -180,7 +182,7 @@ func (c *catalog) ItemsByChecksum(sum Checksum) ([]Item, error) {
 }
 
 func (c *catalog) IsDeletedChecksum(sum Checksum) bool {
-	deleted, ok := c.DeletedChecksums[sum]
+	deleted, ok := c.Deleted[sum]
 	return ok && deleted
 }
 
@@ -213,7 +215,7 @@ func (c *catalog) IsKnownChecksum(sum Checksum) bool {
 	if ok {
 		return true
 	}
-	_, ok = c.DeletedChecksums[sum]
+	_, ok = c.Deleted[sum]
 	if ok {
 		return true
 	}
@@ -262,6 +264,32 @@ func (c *catalog) AllItems() <-chan Item {
 	}()
 
 	return ret
+}
+
+func (c *catalog) DeletedChecksums() <-chan Checksum {
+	ret := make(chan Checksum, 100)
+	keys := make([]Checksum, 0, len(c.Deleted))
+	for checksum := range c.Deleted {
+		keys = append(keys, checksum)
+	}
+	go func() {
+		defer close(ret)
+
+		if len(keys) == 0 {
+			return
+		}
+		sort.Slice(keys, func(i, j int) bool {
+			return keys[i] < keys[j]
+		})
+
+		for _, k := range keys {
+			ret <- k
+		}
+
+	}()
+
+	return ret
+
 }
 
 // Read reads catalog stored in a json file

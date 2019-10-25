@@ -351,8 +351,8 @@ func TestClone(t *testing.T) {
 	th.Assert(t, &c.Items != &clone.Items, "clone.Items should be a different object")
 	th.Equals(t, c.checksumToPaths, clone.checksumToPaths)
 	th.Assert(t, &c.checksumToPaths != &clone.checksumToPaths, "clone.pathToIdx should be a different object")
-	th.Equals(t, c.DeletedChecksums, clone.DeletedChecksums)
-	th.Assert(t, &c.DeletedChecksums != &clone.DeletedChecksums, "clone.checksumToIdx should be a different object")
+	th.Equals(t, c.Deleted, clone.Deleted)
+	th.Assert(t, &c.Deleted != &clone.Deleted, "clone.checksumToIdx should be a different object")
 }
 
 func TestFilterNew(t *testing.T) {
@@ -433,6 +433,36 @@ func TestAllItems(t *testing.T) {
 	collection.Add(c)
 	actual = cth.ReadStringChannel(paths(collection.AllItems()))
 	th.Equals(t, []string{c.Path, b.Path, a.Path}, actual)
+}
+
+func TestDeletedChecksums(t *testing.T) {
+
+	strings := func(checksums <-chan Checksum) <-chan string {
+		ret := make(chan string)
+		go func() {
+			for checksum := range checksums {
+				ret <- string(checksum)
+			}
+			ret <- ""
+		}()
+		return ret
+	}
+
+	collection := NewCatalog()
+	actual := cth.ReadStringChannel(strings(collection.DeletedChecksums()))
+	th.Equals(t, []string{}, actual)
+
+	collection.DeleteChecksum("asdf")
+	actual = cth.ReadStringChannel(strings(collection.DeletedChecksums()))
+	th.Equals(t, []string{"asdf"}, actual)
+
+	collection.DeleteChecksum("fdsa")
+	actual = cth.ReadStringChannel(strings(collection.DeletedChecksums()))
+	th.Equals(t, []string{"asdf", "fdsa"}, actual)
+
+	collection.DeleteChecksum("aaa")
+	actual = cth.ReadStringChannel(strings(collection.DeletedChecksums()))
+	th.Equals(t, []string{"aaa", "asdf", "fdsa"}, actual)
 }
 
 func TestIsKnownChecksum(t *testing.T) {
