@@ -126,7 +126,7 @@ func TestAddDelete(t *testing.T) {
 	th.Equals(t, []Item{}, items)
 }
 
-func TestDeleteChecksum(t *testing.T) {
+func TestDeleteUndeleteChecksum(t *testing.T) {
 	fs := afero.NewOsFs()
 	const sum1 = "12345"
 	c := NewCatalog()
@@ -152,6 +152,20 @@ func TestDeleteChecksum(t *testing.T) {
 	th.Equals(t, 0, c.Count())
 	th.Equals(t, 2, c.DeletedCount())
 	th.Equals(t, true, c.IsDeletedChecksum(sum2))
+
+	c.UnDeleteChecksum(sum1)
+	th.Equals(t, Item{}, storedItem)
+	th.Equals(t, 0, c.Count())
+	th.Equals(t, 1, c.DeletedCount())
+	th.Equals(t, false, c.IsDeletedChecksum(sum1))
+	th.Equals(t, true, c.IsDeletedChecksum(sum2))
+
+	c.UnDeleteChecksum(sum2)
+	th.Equals(t, Item{}, storedItem)
+	th.Equals(t, 0, c.Count())
+	th.Equals(t, 0, c.DeletedCount())
+	th.Equals(t, false, c.IsDeletedChecksum(sum1))
+	th.Equals(t, false, c.IsDeletedChecksum(sum2))
 }
 
 func TestDeletePathWithDuplicatedChecksum(t *testing.T) {
@@ -463,6 +477,18 @@ func TestDeletedChecksums(t *testing.T) {
 	collection.DeleteChecksum("aaa")
 	actual = cth.ReadStringChannel(strings(collection.DeletedChecksums()))
 	th.Equals(t, []string{"aaa", "asdf", "fdsa"}, actual)
+
+	collection.UnDeleteChecksum("asdf")
+	actual = cth.ReadStringChannel(strings(collection.DeletedChecksums()))
+	th.Equals(t, []string{"aaa", "fdsa"}, actual)
+
+	collection.UnDeleteChecksum("fdsa")
+	actual = cth.ReadStringChannel(strings(collection.DeletedChecksums()))
+	th.Equals(t, []string{"aaa"}, actual)
+
+	collection.UnDeleteChecksum("aaa")
+	actual = cth.ReadStringChannel(strings(collection.DeletedChecksums()))
+	th.Equals(t, []string{}, actual)
 }
 
 func TestIsKnownChecksum(t *testing.T) {
@@ -481,6 +507,12 @@ func TestIsKnownChecksum(t *testing.T) {
 	c.DeleteChecksum(item1.Md5Sum)
 	th.Equals(t, true, c.IsKnownChecksum(item1.Md5Sum))
 	th.Equals(t, true, c.IsKnownChecksum(item2.Md5Sum))
+	c.UnDeleteChecksum(item1.Md5Sum)
+	th.Equals(t, false, c.IsKnownChecksum(item1.Md5Sum))
+	th.Equals(t, true, c.IsKnownChecksum(item2.Md5Sum))
+	c.UnDeleteChecksum(item2.Md5Sum)
+	th.Equals(t, false, c.IsKnownChecksum(item1.Md5Sum))
+	th.Equals(t, false, c.IsKnownChecksum(item2.Md5Sum))
 }
 
 func TestForgetPath(t *testing.T) {

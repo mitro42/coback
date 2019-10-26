@@ -46,6 +46,8 @@ type Catalog interface {
 	DeletedCount() int
 	// DeleteChecksum stores the checksum as deleted and removes all items from the Catalog that have the given checksum (if any)
 	DeleteChecksum(sum Checksum)
+	// UnDeleteChecksum removes the checksum from the deleted checksums. It does not affect the stored items.
+	UnDeleteChecksum(sum Checksum)
 	// IsDeletedChecksum returns true all the items with the given checksum are marked as deleted.
 	// Returns error if the path doesn't exist or some items are marked as deleted, but not all of them.
 	IsDeletedChecksum(sum Checksum) bool
@@ -144,10 +146,20 @@ func (c *catalog) DeleteChecksum(sum Checksum) {
 	paths, ok := c.checksumToPaths[sum]
 	if ok {
 		for _, p := range paths {
+			item := c.Items[p]
+			c.removeChecksumToPathMapping(item.Md5Sum, item.Path)
 			delete(c.Items, p)
 		}
 	}
 	c.Deleted[sum] = true
+}
+
+func (c *catalog) UnDeleteChecksum(sum Checksum) {
+	_, ok := c.Deleted[sum]
+	if !ok {
+		return
+	}
+	delete(c.Deleted, sum)
 }
 
 func (c *catalog) Item(path string) (Item, error) {
