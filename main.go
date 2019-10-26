@@ -15,8 +15,12 @@ import (
 func stageFiles(importFs afero.Fs, items <-chan catalog.Item, stagingFs afero.Fs) error {
 	fmt.Println("***************** Copying files to staging folder *****************")
 	targetFolder := fsh.NextUnusedFolder(stagingFs)
+	fsh.EnsureDirectoryExist(stagingFs, targetFolder)
 	targetFs := afero.NewBasePathFs(stagingFs, targetFolder)
 	for item := range items {
+		if item.Path == "" {
+			return nil
+		}
 		fmt.Println(item.Path)
 		err := fsh.CopyFile(importFs, item.Path, item.ModificationTime, targetFs)
 		if err != nil {
@@ -43,6 +47,7 @@ func main() {
 		fmt.Printf("Cannot initialize folder: %v\n", err)
 		os.Exit(-2)
 	}
+	importCatalog.Write(importFs)
 
 	collectionFs, err := scan.InitializeFolder(baseFs, os.Args[3], "Collection")
 	if err != nil {
@@ -65,6 +70,13 @@ func main() {
 		fmt.Printf("Cannot initialize folder: %v\n", err)
 		os.Exit(-2)
 	}
+
+	for deletedChecksum := range stagingCatalog.DeletedChecksums() {
+		collectionCatalog.DeleteChecksum(deletedChecksum)
+		stagingCatalog.UnDeleteChecksum(deletedChecksum)
+	}
+	collectionCatalog.Write(collectionFs)
+	stagingCatalog.Write(stagingFs)
 
 	notInCollection := importCatalog.FilterNew(collectionCatalog)
 	notInStaging := notInCollection.FilterNew(stagingCatalog)
