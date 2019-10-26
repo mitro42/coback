@@ -53,8 +53,8 @@ func copyFileContent(sourceFs afero.Fs, sourcePath string, destinationFs afero.F
 	return io.Copy(destinationFile, sourceFile)
 }
 
-// setFileAttributes sets the modification and access times of a file in a FS as described in a catalog.Item
-func setFileAttributes(fs afero.Fs, path, timestamp string) error {
+// SetFileAttributes sets the modification and access times of a file in a FS as described in a catalog.Item
+func SetFileAttributes(fs afero.Fs, path, timestamp string) error {
 	t, err := time.Parse(time.RFC3339Nano, timestamp)
 	if err != nil {
 		return errors.Wrapf(err, "Cannot parse modification time of file '%v' ('%v')", path, timestamp)
@@ -77,7 +77,7 @@ func CopyFile(sourceFs afero.Fs, path, timestamp string, destinationFs afero.Fs)
 		return errors.Wrapf(err, "Incorrect file size after copy '%v'", path)
 	}
 
-	err = setFileAttributes(destinationFs, path, timestamp)
+	err = SetFileAttributes(destinationFs, path, timestamp)
 	return errors.Wrapf(err, "Failed to set file attributes '%v'", path)
 }
 

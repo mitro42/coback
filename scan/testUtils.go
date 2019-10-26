@@ -81,6 +81,21 @@ func createDummyFile(fs afero.Fs, file dummyFileDescription) error {
 	return f.Close()
 }
 
+func createDummyFileWithTimestamp(fs afero.Fs, file dummyFileDescription, modificationTime string) error {
+	f, err := fs.OpenFile(file.Path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	if _, err := f.Write([]byte(file.Content)); err != nil {
+		return err
+	}
+	err = f.Close()
+	if err != nil {
+		return err
+	}
+	return fsh.SetFileAttributes(fs, file.Path, modificationTime)
+}
+
 // createMemFsTestData creates an afero.MemFs and copies the contents of the test_data folder into it.
 // This is necessary to work around an afero limitation:
 // renaming and removing files from a CopyOnWriteFs is not yet supported.

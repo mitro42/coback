@@ -5,8 +5,10 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/mitro42/coback/catalog"
 	cth "github.com/mitro42/coback/catalogtesthelper"
@@ -229,6 +231,147 @@ func TestCheckCatalogFileMismatch(t *testing.T) {
 	th.Equals(t, "test1.txt", <-changedFiles)
 }
 
+func TestQuickCheckCatalogFileMissing(t *testing.T) {
+	countBar := newMockProgressBar()
+	sizeBar := newMockProgressBar()
+	fs := fsh.CreateSafeFs("../test_data")
+	c := catalog.NewCatalog()
+	okFiles := make(chan string)
+	changedFiles := make(chan string)
+	th.NokPrefix(t, quickCheckCatalogFile(fs, "no_such_file", c, countBar, sizeBar, okFiles, changedFiles), "Cannot get file info")
+	th.Equals(t, 0, countBar.incrByCount)
+	th.Equals(t, 0, sizeBar.incrByCount)
+	th.Equals(t, 0, len(okFiles))
+	th.Equals(t, 0, len(changedFiles))
+}
+
+func TestQuickCheckCatalogFileNotInCatalog(t *testing.T) {
+	basePath, _ := os.Getwd()
+	countBar := newMockProgressBar()
+	sizeBar := newMockProgressBar()
+	path := "test_data"
+	fs := fsh.CreateSafeFs(filepath.Join(filepath.Dir(basePath), path))
+	filter := ExtensionFilter("txt")
+	c := ScanFolder(fs, "", filter)
+	okFiles := make(chan string, 1)
+	changedFiles := make(chan string, 1)
+	th.Nok(t, quickCheckCatalogFile(fs, "test1.txt", c, countBar, sizeBar, okFiles, changedFiles), "Cannot find file in catalog 'test1.txt'")
+	th.Equals(t, 1, countBar.incrByCount)
+	th.Equals(t, int64(1), countBar.value)
+	th.Equals(t, 1, sizeBar.incrByCount)
+	th.Equals(t, int64(1160), sizeBar.value)
+	th.Equals(t, 0, len(okFiles))
+	th.Equals(t, 0, len(changedFiles))
+}
+
+func TestQuickCheckCatalogFileSuccess(t *testing.T) {
+	basePath, _ := os.Getwd()
+	countBar := newMockProgressBar()
+	sizeBar := newMockProgressBar()
+	path := "test_data"
+	fs := fsh.CreateSafeFs(filepath.Join(filepath.Dir(basePath), path))
+	c := ScanFolder(fs, "", noFilter{})
+	okFiles := make(chan string, 1)
+	changedFiles := make(chan string, 1)
+	th.Ok(t, quickCheckCatalogFile(fs, "test1.txt", c, countBar, sizeBar, okFiles, changedFiles))
+	th.Equals(t, 1, countBar.incrByCount)
+	th.Equals(t, int64(1), countBar.value)
+	th.Equals(t, 1, sizeBar.incrByCount)
+	th.Equals(t, int64(1160), sizeBar.value)
+	th.Equals(t, "test1.txt", <-okFiles)
+	th.Equals(t, 0, len(changedFiles))
+}
+
+func TestQuickCheckCatalogFileMismatch(t *testing.T) {
+	basePath, _ := os.Getwd()
+	countBar := newMockProgressBar()
+	sizeBar := newMockProgressBar()
+	path := filepath.Join(filepath.Dir(basePath), "test_data")
+	fs := fsh.CreateSafeFs(path)
+	c := ScanFolder(fs, "", noFilter{})
+	modifiedFile := "test1.txt"
+	changeFileContent(fs, modifiedFile)
+	okFiles := make(chan string, 1)
+	changedFiles := make(chan string, 1)
+	th.Ok(t, quickCheckCatalogFile(fs, modifiedFile, c, countBar, sizeBar, okFiles, changedFiles))
+	th.Equals(t, 1, countBar.incrByCount)
+	th.Equals(t, int64(1), countBar.value)
+	th.Equals(t, 1, sizeBar.incrByCount)
+	th.Equals(t, int64(1175), sizeBar.value)
+	th.Equals(t, 0, len(okFiles))
+	th.Equals(t, "test1.txt", <-changedFiles)
+}
+
+func TestQuickCheckCatalogFileContentMismatch(t *testing.T) {
+	basePath, _ := os.Getwd()
+	countBar := newMockProgressBar()
+	sizeBar := newMockProgressBar()
+	path := filepath.Join(filepath.Dir(basePath), "test_data")
+	fs := fsh.CreateSafeFs(path)
+	timestamp := time.Now().Format(time.RFC3339Nano)
+	dummy0 := dummies[0]
+	createDummyFileWithTimestamp(fs, dummy0, timestamp)
+	c := ScanFolder(fs, "", noFilter{})
+	dummy0.Content = strings.ToUpper(dummy0.Content)
+	fs.Remove(dummy0.Path)
+	createDummyFileWithTimestamp(fs, dummy0, timestamp)
+	okFiles := make(chan string, 1)
+	changedFiles := make(chan string, 1)
+	th.Ok(t, quickCheckCatalogFile(fs, dummy0.Path, c, countBar, sizeBar, okFiles, changedFiles))
+	th.Equals(t, 1, countBar.incrByCount)
+	th.Equals(t, int64(1), countBar.value)
+	th.Equals(t, 1, sizeBar.incrByCount)
+	th.Equals(t, int64(32), sizeBar.value)
+	th.Equals(t, "subfolder/dummy1", <-okFiles)
+	th.Equals(t, 0, len(changedFiles))
+}
+
+func TestQuickCheckCatalogFileSizeMismatch(t *testing.T) {
+	basePath, _ := os.Getwd()
+	countBar := newMockProgressBar()
+	sizeBar := newMockProgressBar()
+	path := filepath.Join(filepath.Dir(basePath), "test_data")
+	fs := fsh.CreateSafeFs(path)
+	timestamp := time.Now().Format(time.RFC3339Nano)
+	dummy0 := dummies[0]
+	createDummyFileWithTimestamp(fs, dummy0, timestamp)
+	c := ScanFolder(fs, "", noFilter{})
+	dummy0.Content += "Some other text"
+	fs.Remove(dummy0.Path)
+	createDummyFileWithTimestamp(fs, dummy0, timestamp)
+	okFiles := make(chan string, 1)
+	changedFiles := make(chan string, 1)
+	th.Ok(t, quickCheckCatalogFile(fs, dummy0.Path, c, countBar, sizeBar, okFiles, changedFiles))
+	th.Equals(t, 1, countBar.incrByCount)
+	th.Equals(t, int64(1), countBar.value)
+	th.Equals(t, 1, sizeBar.incrByCount)
+	th.Equals(t, int64(47), sizeBar.value)
+	th.Equals(t, 0, len(okFiles))
+	th.Equals(t, "subfolder/dummy1", <-changedFiles)
+}
+
+func TestQuickCheckCatalogFileModificationTimeMismatch(t *testing.T) {
+	basePath, _ := os.Getwd()
+	countBar := newMockProgressBar()
+	sizeBar := newMockProgressBar()
+	path := filepath.Join(filepath.Dir(basePath), "test_data")
+	fs := fsh.CreateSafeFs(path)
+	dummy0 := dummies[0]
+	createDummyFileWithTimestamp(fs, dummy0, time.Now().Format(time.RFC3339Nano))
+	c := ScanFolder(fs, "", noFilter{})
+	fs.Remove(dummy0.Path)
+	createDummyFileWithTimestamp(fs, dummy0, time.Now().Format(time.RFC3339Nano))
+	okFiles := make(chan string, 1)
+	changedFiles := make(chan string, 1)
+	th.Ok(t, quickCheckCatalogFile(fs, dummy0.Path, c, countBar, sizeBar, okFiles, changedFiles))
+	th.Equals(t, 1, countBar.incrByCount)
+	th.Equals(t, int64(1), countBar.value)
+	th.Equals(t, 1, sizeBar.incrByCount)
+	th.Equals(t, int64(32), sizeBar.value)
+	th.Equals(t, 0, len(okFiles))
+	th.Equals(t, "subfolder/dummy1", <-changedFiles)
+}
+
 func collectFilesSync(c <-chan string) map[string]bool {
 	ret := make(map[string]bool)
 	for file := range c {
@@ -253,7 +396,7 @@ func TestCheckExistingItemsSuccess(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 
-	checkExistingItems(fs, inputFiles, c, countBar, sizeBar, okFiles, changedFiles, &wg)
+	checkExistingItems(fs, true, inputFiles, c, countBar, sizeBar, okFiles, changedFiles, &wg)
 	inputFiles <- "test1.txt"
 	inputFiles <- "subfolder/file1.bin"
 	inputFiles <- "test2.txt"
@@ -280,7 +423,7 @@ func TestCheckExistingItemsMismatch(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 
-	go checkExistingItems(fs, inputFiles, c, countBar, sizeBar, okFiles, changedFiles, &wg)
+	go checkExistingItems(fs, true, inputFiles, c, countBar, sizeBar, okFiles, changedFiles, &wg)
 	changeFileContent(fs, "test2.txt")
 	inputFiles <- "subfolder/file1.bin"
 	inputFiles <- "test2.txt"

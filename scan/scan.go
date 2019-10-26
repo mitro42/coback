@@ -96,7 +96,8 @@ func catalogFile(fs afero.Fs, path string, out chan catalog.Item, countBar Progr
 }
 
 // checkCatalogFile checks a given file (metadata and content) against a catalog
-// Returns true if the file at path exist and the content matches the catalog.
+// The file's path is sent to the ok if everything matches the catalog and to the changed channel otherwise.
+// Returns error if cannot read the file or it's not in the catalog.
 func checkCatalogFile(fs afero.Fs, path string, c catalog.Catalog, countBar ProgressBar, sizeBar ProgressBar, ok chan<- string, changed chan<- string) error {
 	start := time.Now()
 	item, err := catalog.NewItem(fs, path)
@@ -113,6 +114,39 @@ func checkCatalogFile(fs afero.Fs, path string, c catalog.Catalog, countBar Prog
 	}
 
 	if *item == itemInCatalog {
+		ok <- path
+	} else {
+		changed <- path
+	}
+
+	return nil
+}
+
+// quickCheckCatalogFile checks a given file against a catalog.
+// It only checks the file size and modification time.
+// If both are unchanged, it is assumed that the contents are the same too and the path is sent to the ok channel.
+// If either the size or the modification time is different, the path is sent to the changed channel.
+// Returns error if cannot read the file or it's not in the catalog.
+func quickCheckCatalogFile(fs afero.Fs, path string, c catalog.Catalog, countBar ProgressBar, sizeBar ProgressBar, ok chan<- string, changed chan<- string) error {
+	start := time.Now()
+
+	fi, err := fs.Stat(path)
+	if err != nil {
+		return errors.Wrap(err, "Cannot get file info")
+	}
+
+	size := fi.Size()
+	modificationTime := fi.ModTime().Format(time.RFC3339Nano)
+
+	sizeBar.IncrBy(int(size), time.Since(start))
+	countBar.IncrBy(1, time.Since(start))
+
+	itemInCatalog, err := c.Item(path)
+	if err != nil {
+		return errors.Errorf("Cannot find file in catalog '%v'", path)
+	}
+
+	if size == itemInCatalog.Size && modificationTime == itemInCatalog.ModificationTime {
 		ok <- path
 	} else {
 		changed <- path
@@ -165,6 +199,7 @@ func readCatalogItems(fs afero.Fs,
 // Can be interrupted at any time by sending a message to the done channel.
 // The paths channel must be buffered.
 func checkExistingItems(fs afero.Fs,
+	deepCheck bool,
 	paths chan string,
 	c catalog.Catalog,
 	countBar ProgressBar,
@@ -186,8 +221,15 @@ func checkExistingItems(fs afero.Fs,
 						paths <- "" // make one of the siblings stop
 						break
 					}
-					if err := checkCatalogFile(fs, path, c, countBar, sizeBar, ok, changed); err != nil {
-						log.Println(err)
+					if deepCheck {
+						if err := checkCatalogFile(fs, path, c, countBar, sizeBar, ok, changed); err != nil {
+							log.Println(err)
+						}
+					} else {
+						if err := quickCheckCatalogFile(fs, path, c, countBar, sizeBar, ok, changed); err != nil {
+							log.Println(err)
+						}
+
 					}
 				}
 			}()
@@ -431,7 +473,7 @@ func collectFiles(c <-chan string, m map[string]bool, wg *sync.WaitGroup) {
 
 // DiffFiltered scans a folder and compares its contents to the contents of the catalog.
 // It performs a full scan and returns the file paths separated into multiple lists based on the file status.
-func DiffFiltered(fs afero.Fs, c catalog.Catalog, filter FileFilter) FileSystemDiff {
+func DiffFiltered(fs afero.Fs, c catalog.Catalog, filter FileFilter, deepCheck bool) FileSystemDiff {
 	okFiles := make(chan string, 1)
 	changedFiles := make(chan string, 1)
 	var wg sync.WaitGroup
@@ -442,7 +484,7 @@ func DiffFiltered(fs afero.Fs, c catalog.Catalog, filter FileFilter) FileSystemD
 	files, sizes := walkFolder(fs, ".", &wg)
 	filteredFiles := filterFiles(files, filter, &wg)
 	knownFiles, unknownFiles := filterByCatalog(filteredFiles, c, &wg)
-	checkExistingItems(fs, knownFiles, c, countBar, sizeBar, okFiles, changedFiles, &wg)
+	checkExistingItems(fs, deepCheck, knownFiles, c, countBar, sizeBar, okFiles, changedFiles, &wg)
 	go sumSizes(sizes, countBar, sizeBar, nil, &wg)
 	ret := NewFileSystemDiff()
 
@@ -470,5 +512,5 @@ func DiffFiltered(fs afero.Fs, c catalog.Catalog, filter FileFilter) FileSystemD
 
 // Diff scans a folder and compares it to the catalog the same way as DiffFiltered does but without filtering out any files
 func Diff(fs afero.Fs, c catalog.Catalog) FileSystemDiff {
-	return DiffFiltered(fs, c, noFilter{})
+	return DiffFiltered(fs, c, noFilter{}, true)
 }
