@@ -36,20 +36,20 @@ func EnsureDirectoryExist(fs afero.Fs, path string) error {
 //  Metadata of the file is not copied.
 func copyFileContent(sourceFs afero.Fs, sourcePath string, destinationFs afero.Fs, destinationPath string) (int64, error) {
 	sourceFile, err := sourceFs.Open(sourcePath)
-	defer sourceFile.Close()
 	if err != nil {
 		return 0, err
 	}
+	defer sourceFile.Close()
 
 	err = EnsureDirectoryExist(destinationFs, path.Dir(destinationPath))
 	if err != nil {
 		return 0, err
 	}
 	destinationFile, err := destinationFs.Create(destinationPath)
-	defer destinationFile.Close()
 	if err != nil {
 		return 0, errors.Wrapf(err, "Cannot create destination file '%v'", destinationPath)
 	}
+	defer destinationFile.Close()
 	return io.Copy(destinationFile, sourceFile)
 }
 
