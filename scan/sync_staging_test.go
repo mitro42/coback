@@ -158,7 +158,7 @@ func TestSyncStagingWhenFileNotInCollectionIsDeletedFromStaging(t *testing.T) {
 	th.Equals(t, collectionClone, collectionCatalog)
 }
 
-func TestSyncStaginNewFileThatIsAlreadyInCollection(t *testing.T) {
+func TestSyncStagingNewFileThatIsAlreadyInCollection(t *testing.T) {
 	collectionCatalog := catalog.NewCatalog()
 	fs := createMemFsTestData()
 	stagingFs, err := InitializeFolder(fs, "test_data", "Staging")
@@ -179,7 +179,7 @@ func TestSyncStaginNewFileThatIsAlreadyInCollection(t *testing.T) {
 	th.Equals(t, cOrig, cRead)
 }
 
-func TestSyncStaginNewFileThatIsAlreadyDeletedInCollection(t *testing.T) {
+func TestSyncStagingNewFileThatIsAlreadyDeletedInCollection(t *testing.T) {
 	collectionCatalog := catalog.NewCatalog()
 	fs := createMemFsTestData()
 	stagingFs, err := InitializeFolder(fs, "test_data", "Staging")
@@ -198,7 +198,7 @@ func TestSyncStaginNewFileThatIsAlreadyDeletedInCollection(t *testing.T) {
 	th.Equals(t, cOrig, cRead)
 }
 
-func TestSyncStaginNewFileThatIsAlreadyInStaging(t *testing.T) {
+func TestSyncStagingNewFileThatIsAlreadyInStaging(t *testing.T) {
 	collectionCatalog := catalog.NewCatalog()
 	fs := createMemFsTestData()
 	stagingFs, err := InitializeFolder(fs, "test_data", "Staging")
@@ -217,7 +217,7 @@ func TestSyncStaginNewFileThatIsAlreadyInStaging(t *testing.T) {
 	th.Equals(t, cOrig, cRead)
 }
 
-func TestSyncStaginNewFileThatIsAlreadyDeletedInStaging(t *testing.T) {
+func TestSyncStagingNewFileThatIsAlreadyDeletedInStaging(t *testing.T) {
 	collectionCatalog := catalog.NewCatalog()
 	fs := createMemFsTestData()
 	stagingFs, err := InitializeFolder(fs, "test_data", "Staging")
@@ -237,7 +237,7 @@ func TestSyncStaginNewFileThatIsAlreadyDeletedInStaging(t *testing.T) {
 	th.Equals(t, cOrig, cRead)
 }
 
-func TestSyncStaginNewFileThatIsNotKnownInCollectionOrStaging(t *testing.T) {
+func TestSyncStagingNewFileThatIsNotKnownInCollectionOrStaging(t *testing.T) {
 	collectionCatalog := catalog.NewCatalog()
 	fs := createMemFsTestData()
 	stagingFs, err := InitializeFolder(fs, "test_data", "Staging")
@@ -256,7 +256,7 @@ func TestSyncStaginNewFileThatIsNotKnownInCollectionOrStaging(t *testing.T) {
 	th.Equals(t, cOrig, cSynced)
 }
 
-func TestSyncStaginFileChanged(t *testing.T) {
+func TestSyncStagingFileChanged(t *testing.T) {
 	collectionCatalog := catalog.NewCatalog()
 	fs := createMemFsTestData()
 	stagingFs, err := InitializeFolder(fs, "test_data", "Staging")
