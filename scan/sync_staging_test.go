@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/mitro42/coback/catalog"
 	fsh "github.com/mitro42/coback/fshelper"
@@ -264,6 +265,7 @@ func TestSyncStaginFileChanged(t *testing.T) {
 	item, err := catalog.NewItem(stagingFs, "test1.txt")
 	th.Ok(t, err)
 	item.Md5Sum = "42"
+	item.ModificationTime = time.Now().Format(time.RFC3339Nano)
 	cOrig.Set(*item)
 	cOrig.Write(stagingFs)
 
