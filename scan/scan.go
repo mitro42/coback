@@ -1,7 +1,9 @@
 package scan
 
 import (
+	"fmt"
 	"log"
+	"math"
 	"os"
 	"path/filepath"
 	"sync"
@@ -237,8 +239,6 @@ func checkExistingItems(fs afero.Fs,
 		wg.Wait()
 		ok <- ""
 		changed <- ""
-		sizeBar.SetTotal(sizeBar.Current(), true)
-		countBar.SetTotal(countBar.Current(), true)
 	}()
 
 }
@@ -255,9 +255,9 @@ func sumSizes(sizes <-chan int64, countBar ProgressBar, sizeBar ProgressBar, fil
 		}
 		total += s
 		count++
-		sizeBar.SetTotal(total, false)
-		countBar.SetTotal(count, false)
 	}
+	sizeBar.SetTotal(total, true)
+	countBar.SetTotal(count, true)
 	if fileCount != nil {
 		fileCount <- count
 	}
@@ -268,7 +268,7 @@ func createProgressBars() (*mpb.Progress, ProgressBar, ProgressBar) {
 		mpb.WithRefreshRate(100 * time.Millisecond),
 	)
 	countName := "Number of Files"
-	countBar := p.AddBar(int64(0),
+	countBar := p.AddBar(math.MaxInt64,
 		mpb.PrependDecorators(
 			decor.Name(countName, decor.WC{W: len(countName) + 2, C: decor.DidentRight}),
 			// The counters must be removed on completion because if the total stays 0 (no file found),
@@ -278,7 +278,7 @@ func createProgressBars() (*mpb.Progress, ProgressBar, ProgressBar) {
 		mpb.AppendDecorators(decor.Percentage()),
 	)
 	sizeName := "Processed Size"
-	sizeBar := p.AddBar(int64(0),
+	sizeBar := p.AddBar(math.MaxInt64,
 		mpb.PrependDecorators(
 			decor.Name(sizeName, decor.WC{W: len(countName) + 2, C: decor.DidentRight}),
 			// see above
@@ -461,21 +461,38 @@ func filterByCatalog(files <-chan string, c catalog.Catalog, wg *sync.WaitGroup)
 	return
 }
 
-func collectFiles(c <-chan string, m map[string]bool, wg *sync.WaitGroup) {
+func collectFiles(c <-chan string, m map[string]bool, wg *sync.WaitGroup, label string) {
+	defer wg.Done()
 	for file := range c {
 		if file == "" {
-			break
+			return
 		}
 		m[file] = true
 	}
-	wg.Done()
+}
+
+func collectUnknownFiles(fs afero.Fs, c <-chan string, m map[string]bool, countBar ProgressBar, sizeBar ProgressBar, wg *sync.WaitGroup) {
+	defer wg.Done()
+	for file := range c {
+		if file == "" {
+			return
+		}
+		fi, err := fs.Stat(file)
+		if err != nil {
+			fmt.Printf("Cannot get file size: %v\n", err)
+			return
+		}
+		sizeBar.IncrBy(int(fi.Size()))
+		countBar.IncrBy(1)
+		m[file] = true
+	}
 }
 
 // DiffFiltered scans a folder and compares its contents to the contents of the catalog.
 // It performs a full scan and returns the file paths separated into multiple lists based on the file status.
 func DiffFiltered(fs afero.Fs, c catalog.Catalog, filter FileFilter, deepCheck bool) FileSystemDiff {
-	okFiles := make(chan string, 1)
-	changedFiles := make(chan string, 1)
+	okFiles := make(chan string, 100)
+	changedFiles := make(chan string, 100)
 	var wg sync.WaitGroup
 	wg.Add(8)
 
@@ -488,9 +505,9 @@ func DiffFiltered(fs afero.Fs, c catalog.Catalog, filter FileFilter, deepCheck b
 	go sumSizes(sizes, countBar, sizeBar, nil, &wg)
 	ret := NewFileSystemDiff()
 
-	go collectFiles(okFiles, ret.Ok, &wg)
-	go collectFiles(changedFiles, ret.Update, &wg)
-	go collectFiles(unknownFiles, ret.Add, &wg)
+	go collectFiles(okFiles, ret.Ok, &wg, "ok")
+	go collectFiles(changedFiles, ret.Update, &wg, "changed")
+	go collectUnknownFiles(fs, unknownFiles, ret.Add, countBar, sizeBar, &wg)
 	wg.Wait()
 
 	p.Wait()
@@ -512,5 +529,5 @@ func DiffFiltered(fs afero.Fs, c catalog.Catalog, filter FileFilter, deepCheck b
 
 // Diff scans a folder and compares it to the catalog the same way as DiffFiltered does but without filtering out any files
 func Diff(fs afero.Fs, c catalog.Catalog) FileSystemDiff {
-	return DiffFiltered(fs, c, noFilter{}, true)
+	return DiffFiltered(fs, c, noFilter{}, false)
 }
