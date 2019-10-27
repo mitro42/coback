@@ -34,7 +34,7 @@ func readAndDiffCatalog(fs afero.Fs, name string) (catalog.Catalog, FileSystemDi
 		return c, NewFileSystemDiff(), nil
 	}
 	fmt.Println("Comparing folder contents with catalog")
-	diff := Diff(fs, c)
+	diff := Diff(fs, c, false)
 	return c, diff, nil
 }
 

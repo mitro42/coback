@@ -93,7 +93,7 @@ func TestDiffOk(t *testing.T) {
 	path := "test_data"
 	fs := fsh.CreateSafeFs(filepath.Join(filepath.Dir(basePath), path))
 	c := Scan(fs)
-	diff := Diff(fs, c)
+	diff := Diff(fs, c, true)
 	th.Equals(t, 0, len(diff.Add))
 	th.Equals(t, 0, len(diff.Delete))
 	th.Equals(t, 0, len(diff.Update))
@@ -106,7 +106,7 @@ func TestDiffFileMissingFromCatalog(t *testing.T) {
 	fs := fsh.CreateSafeFs(filepath.Join(filepath.Dir(basePath), path))
 	filter := ExtensionFilter("bin")
 	c := ScanFolder(fs, "", filter)
-	diff := Diff(fs, c)
+	diff := Diff(fs, c, true)
 	expAdd := map[string]bool{"subfolder/file1.bin": true, "subfolder/file2.bin": true}
 	th.Equals(t, expAdd, diff.Add)
 	th.Equals(t, 0, len(diff.Delete))
@@ -121,7 +121,7 @@ func TestDiffFileMissingFromDisk(t *testing.T) {
 	err := fs.Remove("test1.txt")
 	th.Ok(t, err)
 
-	diff := Diff(fs, c)
+	diff := Diff(fs, c, true)
 	expDelete := map[string]bool{"test1.txt": true}
 	th.Equals(t, 0, len(diff.Add))
 	th.Equals(t, expDelete, diff.Delete)
@@ -140,7 +140,7 @@ func TestDiffItemChecksumMismatch(t *testing.T) {
 	item.Md5Sum = "abcdef"
 	err = c.Set(item)
 	th.Ok(t, err)
-	diff := Diff(fs, c)
+	diff := Diff(fs, c, true)
 	expAdd := map[string]bool{"subfolder/file1.bin": true, "subfolder/file2.bin": true}
 	expUpdate := map[string]bool{"test1.txt": true}
 	th.Equals(t, expAdd, diff.Add)
@@ -160,7 +160,7 @@ func TestDiffItemSizeMismatch(t *testing.T) {
 	item.Size = 6854
 	err = c.Set(item)
 	th.Ok(t, err)
-	diff := Diff(fs, c)
+	diff := Diff(fs, c, true)
 	expAdd := map[string]bool{"subfolder/file1.bin": true, "subfolder/file2.bin": true}
 	expUpdate := map[string]bool{"test1.txt": true}
 	th.Equals(t, expAdd, diff.Add)
@@ -180,7 +180,7 @@ func TestDiffItemModificationTimeMismatch(t *testing.T) {
 	item.ModificationTime = "1924"
 	err = c.Set(item)
 	th.Ok(t, err)
-	diff := Diff(fs, c)
+	diff := Diff(fs, c, true)
 	expAdd := map[string]bool{"subfolder/file1.bin": true, "subfolder/file2.bin": true}
 	expUpdate := map[string]bool{"test1.txt": true}
 	th.Equals(t, expAdd, diff.Add)
@@ -200,7 +200,7 @@ func TestScanAdd(t *testing.T) {
 	createDummyFile(fs, dummy0)
 	createDummyFile(fs, dummy1)
 
-	diff := Diff(fs, c)
+	diff := Diff(fs, c, true)
 	c2 := ScanAdd(fs, c, diff)
 
 	th.Equals(t, 4, c.Count())

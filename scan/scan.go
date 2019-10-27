@@ -528,6 +528,6 @@ func DiffFiltered(fs afero.Fs, c catalog.Catalog, filter FileFilter, deepCheck b
 }
 
 // Diff scans a folder and compares it to the catalog the same way as DiffFiltered does but without filtering out any files
-func Diff(fs afero.Fs, c catalog.Catalog) FileSystemDiff {
-	return DiffFiltered(fs, c, noFilter{}, false)
+func Diff(fs afero.Fs, c catalog.Catalog, deepCheck bool) FileSystemDiff {
+	return DiffFiltered(fs, c, noFilter{}, deepCheck)
 }
