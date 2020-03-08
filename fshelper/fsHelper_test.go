@@ -116,6 +116,7 @@ func TestCopyFileErrors(t *testing.T) {
 	th.Ok(t, err)
 	f.Close()
 	sourceItem2, err := catalog.NewItem(sourceFs, "test/file")
+	th.Ok(t, err)
 
 	err = CopyFile(sourceFs, sourceItem2.Path, sourceItem2.ModificationTime, destinationFs)
 	th.NokPrefix(t, err, "Failed to copy file 'test/file': Path is a file")

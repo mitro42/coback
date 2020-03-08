@@ -520,6 +520,7 @@ func TestForgetPath(t *testing.T) {
 	path := "../test_data"
 	fs := fsh.CreateSafeFs(filepath.Join(basePath, path))
 	item1, err := NewItem(fs, "test1.txt")
+	th.Ok(t, err)
 	err = fsh.CopyFile(fs, item1.Path, item1.ModificationTime, afero.NewBasePathFs(fs, "subfolder"))
 	th.Ok(t, err)
 	itemCopy, err := NewItem(fs, "subfolder/test1.txt")

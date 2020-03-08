@@ -33,6 +33,7 @@ func TestSyncStagingStartOnlyNewFiles(t *testing.T) {
 	th.Ok(t, err)
 
 	cRead, err := catalog.Read(stagingFs, catalog.CatalogFileName)
+	th.Ok(t, err)
 	th.Equals(t, c, cRead)
 
 	th.Equals(t, 4, c.Count())
@@ -48,6 +49,7 @@ func TestSyncStagingStartFileIsAlreadyInCollection(t *testing.T) {
 	basePath, _ := os.Getwd()
 	fs := fsh.CreateSafeFs(filepath.Dir(basePath))
 	stagingFs, err := InitializeFolder(fs, "test_data", "Staging")
+	th.Ok(t, err)
 	item, err := catalog.NewItem(stagingFs, "test2.txt")
 	th.Ok(t, err)
 	collectionCatalog.Add(*item)
@@ -66,6 +68,7 @@ func TestSyncStagingStartFileIsAlreadyDeletedInCollection(t *testing.T) {
 	basePath, _ := os.Getwd()
 	fs := fsh.CreateSafeFs(filepath.Dir(basePath))
 	stagingFs, err := InitializeFolder(fs, "test_data", "Staging")
+	th.Ok(t, err)
 	collectionCatalog.DeleteChecksum("f350c40373648527aa95b15786473501") // subfolder/file2.bin
 
 	c, err := SyncCatalogWithStagingFolder(stagingFs, collectionCatalog)
@@ -162,6 +165,7 @@ func TestSyncStagingNewFileThatIsAlreadyInCollection(t *testing.T) {
 	collectionCatalog := catalog.NewCatalog()
 	fs := createMemFsTestData()
 	stagingFs, err := InitializeFolder(fs, "test_data", "Staging")
+	th.Ok(t, err)
 	cOrig := Scan(stagingFs)
 	dummy0 := dummies[0]
 	createDummyFile(stagingFs, dummy0)
@@ -183,6 +187,7 @@ func TestSyncStagingNewFileThatIsAlreadyDeletedInCollection(t *testing.T) {
 	collectionCatalog := catalog.NewCatalog()
 	fs := createMemFsTestData()
 	stagingFs, err := InitializeFolder(fs, "test_data", "Staging")
+	th.Ok(t, err)
 	cOrig := Scan(stagingFs)
 	dummy0 := dummies[0]
 	createDummyFile(stagingFs, dummy0)
@@ -202,6 +207,7 @@ func TestSyncStagingNewFileThatIsAlreadyInStaging(t *testing.T) {
 	collectionCatalog := catalog.NewCatalog()
 	fs := createMemFsTestData()
 	stagingFs, err := InitializeFolder(fs, "test_data", "Staging")
+	th.Ok(t, err)
 	cOrig := Scan(stagingFs)
 
 	item, err := catalog.NewItem(stagingFs, "test1.txt")
@@ -221,6 +227,7 @@ func TestSyncStagingNewFileThatIsAlreadyDeletedInStaging(t *testing.T) {
 	collectionCatalog := catalog.NewCatalog()
 	fs := createMemFsTestData()
 	stagingFs, err := InitializeFolder(fs, "test_data", "Staging")
+	th.Ok(t, err)
 	cOrig := Scan(stagingFs)
 	dummy0 := dummies[0]
 	createDummyFile(stagingFs, dummy0)
@@ -241,6 +248,7 @@ func TestSyncStagingNewFileThatIsNotKnownInCollectionOrStaging(t *testing.T) {
 	collectionCatalog := catalog.NewCatalog()
 	fs := createMemFsTestData()
 	stagingFs, err := InitializeFolder(fs, "test_data", "Staging")
+	th.Ok(t, err)
 	cOrig := Scan(stagingFs)
 	dummy0 := dummies[0]
 	createDummyFile(stagingFs, dummy0)
@@ -260,6 +268,7 @@ func TestSyncStagingFileChanged(t *testing.T) {
 	collectionCatalog := catalog.NewCatalog()
 	fs := createMemFsTestData()
 	stagingFs, err := InitializeFolder(fs, "test_data", "Staging")
+	th.Ok(t, err)
 	cOrig := Scan(stagingFs)
 
 	item, err := catalog.NewItem(stagingFs, "test1.txt")
