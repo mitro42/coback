@@ -5,3 +5,5 @@
 [![codecov](https://codecov.io/gh/mitro42/coback/branch/master/graph/badge.svg)](https://codecov.io/gh/mitro42/coback)
 
 Consolidate Backups and save you some headache
+
+Leave no file behind! Make no decision twice!
