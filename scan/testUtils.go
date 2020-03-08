@@ -14,7 +14,6 @@ import (
 type mockProgressBar struct {
 	value         int64
 	total         int64
-	elapsed       time.Duration
 	done          bool
 	incrByCount   int
 	setTotalCount int
@@ -33,11 +32,10 @@ func (m *mockProgressBar) SetTotal(total int64, final bool) {
 	m.setTotalCount++
 }
 
-func (m *mockProgressBar) IncrBy(n int, wdd ...time.Duration) {
+func (m *mockProgressBar) IncrBy(n int) {
 	m.mux.Lock()
 	defer m.mux.Unlock()
 	m.value += int64(n)
-	m.elapsed += wdd[0]
 	m.incrByCount++
 }
 

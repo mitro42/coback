@@ -20,7 +20,7 @@ import (
 // It enables easy mocking of the progress bars in unit tests
 type ProgressBar interface {
 	SetTotal(total int64, final bool)
-	IncrBy(n int, wdd ...time.Duration)
+	IncrBy(n int)
 	Current() int64
 }
 
@@ -86,13 +86,12 @@ func filterFiles(files <-chan string, filter FileFilter, wg *sync.WaitGroup) cha
 }
 
 func catalogFile(fs afero.Fs, path string, out chan catalog.Item, countBar ProgressBar, sizeBar ProgressBar) {
-	start := time.Now()
 	item, err := catalog.NewItem(fs, path)
 	if err != nil {
 		log.Printf("Cannot read file '%v'", path)
 	} else {
-		sizeBar.IncrBy(int(item.Size), time.Since(start))
-		countBar.IncrBy(1, time.Since(start))
+		sizeBar.IncrBy(int(item.Size))
+		countBar.IncrBy(1)
 		out <- *item
 	}
 }
@@ -101,14 +100,13 @@ func catalogFile(fs afero.Fs, path string, out chan catalog.Item, countBar Progr
 // The file's path is sent to the ok if everything matches the catalog and to the changed channel otherwise.
 // Returns error if cannot read the file or it's not in the catalog.
 func checkCatalogFile(fs afero.Fs, path string, c catalog.Catalog, countBar ProgressBar, sizeBar ProgressBar, ok chan<- string, changed chan<- string) error {
-	start := time.Now()
 	item, err := catalog.NewItem(fs, path)
 	if err != nil {
 		return errors.Errorf("Cannot read file '%v'", path)
 	}
 
-	sizeBar.IncrBy(int(item.Size), time.Since(start))
-	countBar.IncrBy(1, time.Since(start))
+	sizeBar.IncrBy(int(item.Size))
+	countBar.IncrBy(1)
 	itemInCatalog, err := c.Item(path)
 
 	if err != nil {
@@ -130,8 +128,6 @@ func checkCatalogFile(fs afero.Fs, path string, c catalog.Catalog, countBar Prog
 // If either the size or the modification time is different, the path is sent to the changed channel.
 // Returns error if cannot read the file or it's not in the catalog.
 func quickCheckCatalogFile(fs afero.Fs, path string, c catalog.Catalog, countBar ProgressBar, sizeBar ProgressBar, ok chan<- string, changed chan<- string) error {
-	start := time.Now()
-
 	fi, err := fs.Stat(path)
 	if err != nil {
 		return errors.Wrap(err, "Cannot get file info")
@@ -140,8 +136,8 @@ func quickCheckCatalogFile(fs afero.Fs, path string, c catalog.Catalog, countBar
 	size := fi.Size()
 	modificationTime := fi.ModTime().Format(time.RFC3339Nano)
 
-	sizeBar.IncrBy(int(size), time.Since(start))
-	countBar.IncrBy(1, time.Since(start))
+	sizeBar.IncrBy(int(size))
+	countBar.IncrBy(1)
 
 	itemInCatalog, err := c.Item(path)
 	if err != nil {
