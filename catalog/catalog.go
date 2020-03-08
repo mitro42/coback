@@ -60,7 +60,7 @@ type Catalog interface {
 	// Clone creates a deep copy of the Catalog
 	Clone() Catalog
 	// FilterNew returns a catalog that contains all items that are present in this Catalog, but not in the other
-	// (either as regulas items or deleted hashes)
+	// (either as regular items or deleted hashes)
 	FilterNew(other Catalog) Catalog
 }
 
