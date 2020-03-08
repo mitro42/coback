@@ -52,12 +52,12 @@ import (
 
 // folder4 - has duplicates in itself
 //  |- holiday
+//  |    |- public
+//  |    |    |- view1.jpg[10]
+//  |    |    |- view2.jpg[11]
 //  |    |- view1.jpg[10]
 //  |    |- view2.jpg[11]
 //  |    |- view3.jpg[12]
-//  |    |- public
-//  |         |- view1.jpg[10]
-//  |         |- view2.jpg[11]
 //  |- view1.jpg[10]
 
 func TestScenario1(t *testing.T) {
