@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/mitro42/coback/catalog"
 	fsh "github.com/mitro42/coback/fshelper"
@@ -22,7 +23,7 @@ func stageFiles(importFs afero.Fs, items <-chan catalog.Item, stagingFs afero.Fs
 		if item.Path == "" {
 			return nil
 		}
-		fmt.Println(item.Path)
+		fmt.Printf("%s --> %s\n", item.Path, filepath.Join(targetFolder, item.Path))
 		err := fsh.CopyFile(importFs, item.Path, item.ModificationTime, targetFs)
 		if err != nil {
 			return err
@@ -32,17 +33,17 @@ func stageFiles(importFs afero.Fs, items <-chan catalog.Item, stagingFs afero.Fs
 }
 
 func initializeFolders(baseFs afero.Fs, fromPath string, stagingPath string, toPath string) (importFs afero.Fs, stagingFs afero.Fs, collectionFs afero.Fs, err error) {
-	importFs, err = scan.InitializeFolder(baseFs, os.Args[1], "Import")
+	importFs, err = scan.InitializeFolder(baseFs, fromPath, "Import")
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	stagingFs, err = scan.InitializeFolder(baseFs, os.Args[2], "Staging")
+	stagingFs, err = scan.InitializeFolder(baseFs, stagingPath, "Staging")
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	collectionFs, err = scan.InitializeFolder(baseFs, os.Args[3], "Collection")
+	collectionFs, err = scan.InitializeFolder(baseFs, toPath, "Collection")
 	if err != nil {
 		return nil, nil, nil, err
 	}
