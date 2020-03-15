@@ -13,6 +13,7 @@ function create_file() {
 
 if [ "$#" -ne 2 ]; then
     echo "Usage: " $0 " <minimum file size> <maximum file size>"
+    exit 1
 fi
 
 SIZE_MIN=$1
