@@ -36,7 +36,7 @@ create_file integration_test_data/folder1/family/sis.jpg
 create_file integration_test_data/folder1/friends/kara.jpg
 create_file integration_test_data/folder1/friends/conor.jpg
 create_file integration_test_data/folder1/friends/markus.jpg
-create_file integration_test_data/folder1/funny.jpg
+create_file integration_test_data/folder1/funny.png
 
 cp integration_test_data/folder1/family/mom.jpg integration_test_data/folder2/family
 cp integration_test_data/folder1/family/dad.jpg integration_test_data/folder2/family/daddy.jpg
@@ -48,7 +48,7 @@ cp integration_test_data/folder1/family/mom.jpg integration_test_data/folder3/fa
 cp integration_test_data/folder1/family/sis.jpg integration_test_data/folder3/family
 cp integration_test_data/folder1/friends/conor.jpg integration_test_data/folder3/friends
 cp integration_test_data/folder1/friends/markus.jpg integration_test_data/folder3/friends
-cp integration_test_data/folder1/funny.jpg integration_test_data/folder3/
+cp integration_test_data/folder1/funny.png integration_test_data/folder3/
 
 create_file integration_test_data/folder4/holiday/view1.jpg
 create_file integration_test_data/folder4/holiday/view2.jpg
