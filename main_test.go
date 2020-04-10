@@ -7,8 +7,10 @@ import (
 	"testing"
 	"time"
 	// "github.com/mitro42/coback/catalog"
+
 	fsh "github.com/mitro42/coback/fshelper"
 	th "github.com/mitro42/testhelper"
+	"github.com/pkg/errors"
 	"github.com/spf13/afero"
 )
 
@@ -62,19 +64,30 @@ import (
 //  |- view1.jpg[10]
 
 // Copies one folder of the pre-generated test data to the specified fs.
-func copyFolder(t *testing.T, fs afero.Fs, folder string) {
+func copyTestData(sourceFolder string, destinationFs afero.Fs) error {
 	_, err := os.Stat("integration_test_data")
 	if os.IsNotExist(err) {
-		t.Fatalf("integration_test_data folder  doesn't exist. Please run generate_integration_test_data.sh")
+		return errors.New("integration_test_data folder  doesn't exist. Please run generate_integration_test_data.sh")
 	}
 	sourceFs := fsh.CreateSafeFs("integration_test_data")
-	afero.Walk(sourceFs, folder, func(path string, info os.FileInfo, err error) error {
+	return copyFolder(sourceFs, sourceFolder, destinationFs, sourceFolder)
+}
+
+// Copies a folder with all its contents between two filesystems
+func copyFolder(sourceBaseFs afero.Fs, sourceFolder string, destinationBaseFs afero.Fs, destinationFolder string) error {
+	sourceFs := newBasePathFs(sourceBaseFs, sourceFolder)
+	destinationFs := newBasePathFs(destinationBaseFs, destinationFolder)
+	afero.Walk(sourceFs, ".", func(path string, info os.FileInfo, err error) error {
 		if info.IsDir() {
 			return nil
 		}
-		fsh.CopyFile(sourceFs, path, info.ModTime().Format(time.RFC3339Nano), fs)
+		err1 := fsh.CopyFile(sourceFs, path, info.ModTime().Format(time.RFC3339Nano), destinationFs)
+		if err1 != nil {
+			return errors.Wrapf(err1, "Failed to copy file: %s", path)
+		}
 		return nil
 	})
+	return nil
 }
 
 func newBasePathFs(fs afero.Fs, folder string) afero.Fs {
@@ -107,18 +120,22 @@ func moveFolder(sourceBaseFs afero.Fs, sourceFolder string, destinationBaseFs af
 
 // Creates a MemoryFs and copies a set of folders of pre-generated test data into it.
 // The returned fs can be used as a source of imports in integration tests.
-func prepareTestFs(t *testing.T, folders ...string) afero.Fs {
+func prepareTestFs(t *testing.T, folders ...string) (afero.Fs, error) {
 	fs := afero.NewMemMapFs()
 	// fs := afero.NewBasePathFs(afero.NewOsFs(), "/tmp/xx")
 	for _, folder := range folders {
-		copyFolder(t, fs, folder)
+		err := copyTestData(folder, fs)
+		if err != nil {
+			return nil, err
+		}
 	}
-	return fs
+	return fs, nil
 }
 
 // Counts the number of files in a fs and fails the test is the actual number of
 // the files differ from the expected number. Ignores files called coback.catalog.
 func expectFileCount(t *testing.T, fs afero.Fs, expected int) {
+	t.Helper()
 	actual := 0
 	afero.Walk(fs, ".", func(path string, info os.FileInfo, err error) error {
 		// fmt.Printf("expectFileCount info: %v\n", info)
@@ -192,7 +209,8 @@ func TestScenario1(t *testing.T) {
 	// 5. Import folder1 again, check staging - must stay empty
 	// 6. Import folder2 again, check staging - must stay empty
 
-	fs := prepareTestFs(t, "folder1", "folder2")
+	fs, err := prepareTestFs(t, "folder1", "folder2")
+	th.Ok(t, err)
 	import1Fs, stagingFs, collectionFs, err := initializeFolders(fs, "folder1", "staging", "collection")
 	th.Ok(t, err)
 	// 1
@@ -230,19 +248,115 @@ func TestScenario1(t *testing.T) {
 	expectFileCount(t, stagingFs, 0)
 }
 
-func TestScenario1Copy(t *testing.T) {
-	// Same as Scenario1 but all files are copied instead of moved.
-	// A the end all files are deleted from staging and a reimport is performed.
-}
+// NOTE This scenario is unfinished as it is not clear what the expected behavior should look  like here.
+// In a sense this is a small user error. The files from the staging should be moved to the collection not copied.
+// So whenever a new import is ran there should be no files present in staging that are already in the collection.
+// But even if there are such files, the import should not fail completely (probably).
+// Expected behavior TBD.
+//
+// func TestScenario1Copy(t *testing.T) {
+// 	// Same as Scenario1 but all files are copied instead of moved.
+// 	// A the end all files are deleted from staging and a reimport is performed.
+
+// 	fs, err := prepareTestFs(t, "folder1", "folder2")
+// 	th.Ok(t, err)
+// 	import1Fs, stagingFs, collectionFs, err := initializeFolders(fs, "folder1", "staging", "collection")
+// 	th.Ok(t, err)
+// 	// 1
+// 	err = run(import1Fs, stagingFs, collectionFs)
+// 	th.Ok(t, err)
+// 	expectFolder1Contents(t, import1Fs, ".")
+// 	expectFolder1Contents(t, stagingFs, "1")
+
+// 	// 2 (user action)
+// 	copyFolder(stagingFs, "1", collectionFs, ".")
+// 	expectFolder1Contents(t, stagingFs, "1")
+// 	expectFolder1Contents(t, collectionFs, ".")
+
+// 	// 3
+// 	import2Fs, stagingFs, collectionFs, err := initializeFolders(fs, "folder2", "staging", "collection")
+// 	err = run(import2Fs, stagingFs, collectionFs)
+// 	th.Ok(t, err)
+// 	expectFolder1Contents(t, collectionFs, ".")
+// 	expectFolder2Contents(t, import2Fs, "")
+// 	expectFileCount(t, stagingFs, 9)
+// 	expectFile(t, stagingFs, "2/friends/tom.jpg")
+// 	expectFile(t, stagingFs, "2/friends/jerry.jpg")
+
+// 	// 4 (user action)
+// 	copyFolder(stagingFs, "2", collectionFs, ".")
+// 	expectFileCount(t, stagingFs, 9)
+
+// 	// 5
+// 	err = run(import1Fs, stagingFs, collectionFs)
+// 	th.Ok(t, err)
+// 	expectFileCount(t, stagingFs, 9)
+
+// 	// 6
+// 	err = run(import2Fs, stagingFs, collectionFs)
+// 	th.Ok(t, err)
+// 	expectFileCount(t, stagingFs, 9)
+
+// 	// 7 - empty staging folder
+// 	stagingFs.RemoveAll("1")
+// 	stagingFs.RemoveAll("2")
+
+// 	// 8 - test reimporting of folder1
+// 	err = run(import1Fs, stagingFs, collectionFs)
+// 	th.Ok(t, err)
+// 	expectFileCount(t, stagingFs, 0)
+
+// 	// 9 - test reimporting of folder2
+// 	err = run(import2Fs, stagingFs, collectionFs)
+// 	th.Ok(t, err)
+// 	expectFileCount(t, stagingFs, 0)
+// }
 
 func TestScenario2(t *testing.T) {
-	// All files copied to staging are deleted, nothing reaches the collection.
+	// All files copied to staging are deleted, nothing reaches the collection (coback.catalog is not deleted).
 	// 1. Import folder1, check staging
 	// 2. Delete all files from staging
 	// 3. Import folder2, check staging
 	// 4. Delete all files from staging
 	// 5. Import folder1 again, check staging - must stay empty
 	// 6. Import folder2 again, check staging - must stay empty
+
+	fs, err := prepareTestFs(t, "folder1", "folder2")
+	th.Ok(t, err)
+	import1Fs, stagingFs, collectionFs, err := initializeFolders(fs, "folder1", "staging", "collection")
+	th.Ok(t, err)
+	// 1
+	err = run(import1Fs, stagingFs, collectionFs)
+	th.Ok(t, err)
+	expectFolder1Contents(t, import1Fs, ".")
+	expectFolder1Contents(t, stagingFs, "1")
+
+	// 2 (user action)
+	stagingFs.RemoveAll("1")
+	expectFileCount(t, stagingFs, 0)
+
+	// 3
+	import2Fs, stagingFs, collectionFs, err := initializeFolders(fs, "folder2", "staging", "collection")
+	err = run(import2Fs, stagingFs, collectionFs)
+	th.Ok(t, err)
+	expectFolder2Contents(t, import2Fs, "")
+	expectFileCount(t, stagingFs, 2)
+	expectFile(t, stagingFs, "1/friends/tom.jpg")
+	expectFile(t, stagingFs, "1/friends/jerry.jpg")
+
+	// 4 (user action)
+	stagingFs.RemoveAll("1")
+	expectFileCount(t, stagingFs, 0)
+
+	// 5
+	err = run(import1Fs, stagingFs, collectionFs)
+	th.Ok(t, err)
+	expectFileCount(t, stagingFs, 0)
+
+	// 6
+	err = run(import2Fs, stagingFs, collectionFs)
+	th.Ok(t, err)
+	expectFileCount(t, stagingFs, 0)
 }
 
 func TestScenario3(t *testing.T) {

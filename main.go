@@ -72,7 +72,6 @@ func run(importFs afero.Fs, stagingFs afero.Fs, collectionFs afero.Fs) error {
 		stagingCatalog.UnDeleteChecksum(deletedChecksum)
 	}
 	collectionCatalog.Write(collectionFs)
-	stagingCatalog.Write(stagingFs)
 
 	notInCollection := importCatalog.FilterNew(collectionCatalog)
 	notInStaging := notInCollection.FilterNew(stagingCatalog)
@@ -80,6 +79,12 @@ func run(importFs afero.Fs, stagingFs afero.Fs, collectionFs afero.Fs) error {
 	if err = stageFiles(importFs, notInStaging.AllItems(), stagingFs); err != nil {
 		return errors.Wrapf(err, "Failed to copy files")
 	}
+
+	stagingCatalog, err = scan.SyncCatalogWithStagingFolder(stagingFs, collectionCatalog)
+	if err != nil {
+		return errors.Wrapf(err, "Cannot sync folder contents after staging")
+	}
+	stagingCatalog.Write(stagingFs)
 	return nil
 }
 
