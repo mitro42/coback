@@ -362,12 +362,63 @@ func TestScenario2(t *testing.T) {
 func TestScenario3(t *testing.T) {
 	// Some files are moved from staging to collection, some files are deleted from staging, some files are deleted from collection later.
 	// 1. Import folder1, check staging
-	// 2. Move all files from staging to colletion
+	// 2. Move some files from staging to collection, delete the rest from staging
 	// 3. Import folder2, check staging
-	// 4. Move some files from staging to collection
-	// 5. Delete some files from collection that were moved there in step 2
+	// 4. Move all files from staging to colletion
+	// 5. Delete some files from collection that were moved there in step 1 or step 2
 	// 6. Import folder1 again, check staging - must stay empty
 	// 7. Import folder2 again, check staging - must stay empty
+	// 8. Import folder3, check staging - must stay empty
+
+	fs, err := prepareTestFs(t, "folder1", "folder2", "folder3")
+	th.Ok(t, err)
+	import1Fs, stagingFs, collectionFs, err := initializeFolders(fs, "folder1", "staging", "collection")
+	th.Ok(t, err)
+	// 1
+	err = run(import1Fs, stagingFs, collectionFs)
+	th.Ok(t, err)
+	expectFolder1Contents(t, import1Fs, ".")
+	expectFolder1Contents(t, stagingFs, "1")
+
+	// 2 (user action)
+	stagingFs.RemoveAll("1/family")
+	moveFolder(stagingFs, "1/friends", collectionFs, ".")
+	moveFolder(stagingFs, "1", collectionFs, "funny")
+	expectFileCount(t, stagingFs, 0)
+
+	// 3
+	import2Fs, stagingFs, collectionFs, err := initializeFolders(fs, "folder2", "staging", "collection")
+	err = run(import2Fs, stagingFs, collectionFs)
+	th.Ok(t, err)
+	expectFolder2Contents(t, import2Fs, "")
+	expectFileCount(t, stagingFs, 2)
+	expectFile(t, stagingFs, "1/friends/tom.jpg")
+	expectFile(t, stagingFs, "1/friends/jerry.jpg")
+
+	// 4 (user action)
+	moveFolder(stagingFs, "1/friends", collectionFs, ".")
+	expectFileCount(t, stagingFs, 0)
+
+	// 5 (user action)
+	collectionFs.Remove("funny/funny.png")
+	collectionFs.Remove("funny/conor.jpg")
+	collectionFs.Remove("funny/tom.jpg")
+
+	// 6
+	err = run(import1Fs, stagingFs, collectionFs)
+	th.Ok(t, err)
+	expectFileCount(t, stagingFs, 0)
+
+	// 7
+	err = run(import2Fs, stagingFs, collectionFs)
+	th.Ok(t, err)
+	expectFileCount(t, stagingFs, 0)
+
+	// 8
+	import3Fs, stagingFs, collectionFs, err := initializeFolders(fs, "folder3", "staging", "collection")
+	err = run(import3Fs, stagingFs, collectionFs)
+	th.Ok(t, err)
+	expectFileCount(t, stagingFs, 0)
 }
 
 // File edited, to have new unique content while keeping the same name.
@@ -380,3 +431,7 @@ func TestScenario3(t *testing.T) {
 // Forced deep scans (?)
 
 // Import folder has duplicates (both different folder/same name and same folder/different name)
+
+// Starting from non-empty collection
+
+// Starting from non-empty staging
