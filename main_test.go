@@ -73,6 +73,15 @@ func copyTestData(sourceFolder string, destinationFs afero.Fs) error {
 	return copyFolder(sourceFs, sourceFolder, destinationFs, sourceFolder)
 }
 
+// Copies a file between file systems, preserving the timestamps
+func copyFileWithTimestamps(sourceFs afero.Fs, path string, destinationFs afero.Fs) error {
+	info, err := sourceFs.Stat(path)
+	if err != nil {
+		return errors.Wrapf(err, "Failed to copy file: %s", path)
+	}
+	return fsh.CopyFile(sourceFs, path, info.ModTime().Format(time.RFC3339Nano), destinationFs)
+}
+
 // Copies a folder with all its contents between two filesystems
 func copyFolder(sourceBaseFs afero.Fs, sourceFolder string, destinationBaseFs afero.Fs, destinationFolder string) error {
 	sourceFs := newBasePathFs(sourceBaseFs, sourceFolder)
@@ -161,6 +170,13 @@ func expectFile(t *testing.T, fs afero.Fs, file string) {
 	th.Equals(t, false, stat.IsDir())
 }
 
+// Checks that a file is NOT present in fs and fails the test it is present
+func expectFileMissing(t *testing.T, fs afero.Fs, file string) {
+	stat, err := fs.Stat(file)
+	th.Equals(t, stat, nil)
+	th.NokPrefix(t, err, "open")
+}
+
 func expectFolder1Contents(t *testing.T, fs afero.Fs, path string) {
 	if path != "." {
 		fs = afero.NewBasePathFs(fs, path)
@@ -186,6 +202,18 @@ func expectFolder2Contents(t *testing.T, fs afero.Fs, path string) {
 	expectFile(t, fs, "friends/jerry.jpg")
 	expectFile(t, fs, "friends/markus.jpg")
 	expectFile(t, fs, "friends/tom.jpg")
+}
+
+func expectFolder3Contents(t *testing.T, fs afero.Fs, path string) {
+	if path != "" {
+		fs = afero.NewBasePathFs(fs, path)
+	}
+	expectFileCount(t, fs, 5)
+	expectFile(t, fs, "family/mom.jpg")
+	expectFile(t, fs, "family/sis.jpg")
+	expectFile(t, fs, "friends/conor.jpg")
+	expectFile(t, fs, "friends/markus.jpg")
+	expectFile(t, fs, "funny.png")
 }
 
 func listFiles(label string, fs afero.Fs, folder string) {
@@ -421,17 +449,96 @@ func TestScenario3(t *testing.T) {
 	expectFileCount(t, stagingFs, 0)
 }
 
+func TestScenario4(t *testing.T) {
+	// New files are added to the collection between import rounds that have not seen by CoBack before
+	// and are not present in any catalog. Later some of these files are deleted.
+	// 1. Import folder3, check staging
+	// 2. Move all files from staging to colletion (user action)
+	// 3. Copy folder1/friends/kara.jpg and folder2/friends/tom.jpg to collection (user action)
+	// 4. Import folder1, check staging - most not stage kara.jpg
+	// 5. Delete tom.jpg from collection (user action)
+	// 6. Import folder2, check staging - most not stage tom.jpg
+
+	fs, err := prepareTestFs(t, "folder1", "folder2", "folder3")
+	th.Ok(t, err)
+	import1Fs, stagingFs, collectionFs, err := initializeFolders(fs, "folder1", "staging", "collection")
+	th.Ok(t, err)
+	import2Fs, stagingFs, collectionFs, err := initializeFolders(fs, "folder2", "staging", "collection")
+	th.Ok(t, err)
+	import3Fs, stagingFs, collectionFs, err := initializeFolders(fs, "folder3", "staging", "collection")
+	th.Ok(t, err)
+
+	// 1
+	err = run(import3Fs, stagingFs, collectionFs)
+	th.Ok(t, err)
+	expectFolder3Contents(t, stagingFs, "1")
+
+	// 2 (user action)
+	moveFolder(stagingFs, "1", collectionFs, ".")
+	expectFileCount(t, stagingFs, 0)
+
+	// 3 (user action)
+	err = copyFileWithTimestamps(import1Fs, "friends/kara.jpg", collectionFs)
+	th.Ok(t, err)
+	err = copyFileWithTimestamps(import2Fs, "friends/tom.jpg", collectionFs)
+	th.Ok(t, err)
+
+	// 4
+	err = run(import1Fs, stagingFs, collectionFs)
+	th.Ok(t, err)
+	expectFileMissing(t, stagingFs, "1/friends/kara.jpg")
+
+	// 5 (user action)
+	err = collectionFs.Remove("friends/tom.jpg")
+	th.Ok(t, err)
+
+	// 6
+	err = run(import2Fs, stagingFs, collectionFs)
+	th.Ok(t, err)
+	expectFileMissing(t, stagingFs, "2/friends/tom.jpg")
+}
+
+// New files are added to the staging between import rounds, that have not seen by CoBack before and are not present in any catalog.
+// Later some of these files are deleted. (user error)
+
 // File edited, to have new unique content while keeping the same name.
+// edited in collection
+// - file is overwritten with new content (white balance change, old image is discarded)
+//	 ---> old image marked as deleted, new image added as regular new file
+// - new file is created in collection based on an already present image (watermark, original file is kept,
+//	 cannot detect the connection it's simply a new file)
+//   ---> no change for the original file, new added image added as regular new file
+// - old file is renamed, file with the original name is overwritten with new content (e.g. holiday123.jpg is cropped, original file kept as holiday123_orig.jpg)
+//   ---> original hash is kept, new hash is added, path to hash map is updated accordingly
 
-// New files are added to the collection between import rounds, that have not seen by CoBack before and are not present in any catalog.
-// Later some of these files are deleted.
+// edited in staging
+// 1. Edit happens in staging, and left there until coback is ran again
+// - file is overwritten with new content (white balance change, old image is discarded)
+//	 ---> old image treated as is it was deleted, new image added as regular new file (??)
+// - new file is created in collection based on an already present image (watermark, original file is kept,
+//	 cannot detect the connection it's simply a new file)
+//   ---> no change for the original file, new added image added as regular new file
+// - old file is renamed, file with the original name is overwritten with new content (e.g. holiday123.jpg is cropped, original file kept as holiday123_orig.jpg)
+//   ---> original hash is kept, new hash is added, path to hash map is updated accordingly
+// 2. Edit happens in staging, file is moved to collection before coback is ran again
+// - file is overwritten with new content (white balance change, old image is discarded)
+//	 ---> old image marked as deleted, new image added as regular new file
+// - new file is created in collection based on an already present image (watermark, original file is kept,
+//	 cannot detect the connection it's simply a new file)
+//   ---> no change for the original file, new added image added as regular new file
+// - old file is renamed, file with the original name is overwritten with new content (e.g. holiday123.jpg is cropped, original file kept as holiday123_orig.jpg)
+//   ---> original hash is kept, new hash is added, path to hash map is updated accordingly
+// 3. Edit happens in staging, file is deleted before coback is ran again
+//   ---> doesn't matter (cannot detect either) it is the same as if the file was deleted without any change
 
-// Quick scans
-
-// Forced deep scans (?)
+// edited in import - N/A
 
 // Import folder has duplicates (both different folder/same name and same folder/different name)
 
 // Starting from non-empty collection
 
 // Starting from non-empty staging
+
+// Quick scans
+
+// Forced deep scans (?)
