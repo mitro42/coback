@@ -451,13 +451,16 @@ func TestScenario3(t *testing.T) {
 
 func TestScenario4(t *testing.T) {
 	// New files are added to the collection between import rounds that have not seen by CoBack before
-	// and are not present in any catalog. Later some of these files are deleted.
+	// and are not present in any catalog. Later some of these files are deleted then added again.
+	// This scenario does not deal with duplicates (files with same content).
 	// 1. Import folder3, check staging
 	// 2. Move all files from staging to colletion (user action)
 	// 3. Copy folder1/friends/kara.jpg and folder2/friends/tom.jpg to collection (user action)
 	// 4. Import folder1, check staging - most not stage kara.jpg
 	// 5. Delete tom.jpg from collection (user action)
 	// 6. Import folder2, check staging - most not stage tom.jpg
+	// 7. Copy folder2/friends/tom.jpg to collection (user action)
+	// 8. Import folder2, check staging - most not stage tom.jpg
 
 	fs, err := prepareTestFs(t, "folder1", "folder2", "folder3")
 	th.Ok(t, err)
@@ -493,6 +496,15 @@ func TestScenario4(t *testing.T) {
 	th.Ok(t, err)
 
 	// 6
+	err = run(import2Fs, stagingFs, collectionFs)
+	th.Ok(t, err)
+	expectFileMissing(t, stagingFs, "2/friends/tom.jpg")
+
+	// 7 (user action)
+	err = copyFileWithTimestamps(import2Fs, "friends/tom.jpg", collectionFs)
+	th.Ok(t, err)
+
+	// 8
 	err = run(import2Fs, stagingFs, collectionFs)
 	th.Ok(t, err)
 	expectFileMissing(t, stagingFs, "2/friends/tom.jpg")
