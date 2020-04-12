@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"fmt"
 	"os"
+	"path"
 	"strconv"
 	"testing"
 
@@ -136,4 +137,65 @@ func TestCopyFileErrors(t *testing.T) {
 	sourceItem2.ModificationTime = "Not a valid timestamp"
 	err = CopyFile(sourceFs, sourceItem2.Path, sourceItem2.ModificationTime, destinationFs)
 	th.NokPrefix(t, err, "Failed to set file attributes 'test/file': Cannot parse modification time of file 'test/file")
+}
+
+func TestCopyFileToFolder(t *testing.T) {
+	sourceFs := afero.NewMemMapFs()
+	destinationFs := afero.NewMemMapFs()
+
+	testFile := func(filePath string, content []byte, destinationFolderPath string) {
+		f, err := sourceFs.Create(filePath)
+		th.Ok(t, err)
+		f.Write(content)
+		f.Close()
+
+		sourceItem, err := catalog.NewItem(sourceFs, filePath)
+		th.Ok(t, err)
+		err = CopyFileToFolder(sourceFs, sourceItem.Path, sourceItem.ModificationTime, destinationFs, destinationFolderPath)
+		th.Ok(t, err)
+		_, fileName := path.Split(filePath)
+		destinationItem, err := catalog.NewItem(destinationFs, path.Join(destinationFolderPath, fileName))
+		th.Ok(t, err)
+		th.Equals(t, sourceItem.Size, destinationItem.Size)
+		th.Equals(t, sourceItem.Md5Sum, destinationItem.Md5Sum)
+		th.Equals(t, sourceItem.ModificationTime, destinationItem.ModificationTime)
+	}
+
+	testFile("test1", []byte("some content"), "")
+	testFile("test2", []byte("some more content"), ".")
+	testFile("test3", []byte("some more content..."), "some_other_folder")
+	th.Ok(t, sourceFs.MkdirAll("folder/structure/test", 0755))
+	buf := make([]byte, 1024*1024)
+	rand.Read(buf)
+	testFile("folder/structure/test/big_file", buf, "nested/other/folder")
+}
+
+func TestCopyFileTo(t *testing.T) {
+	sourceFs := afero.NewMemMapFs()
+	destinationFs := afero.NewMemMapFs()
+
+	testFile := func(filePath string, content []byte, destinationPath string) {
+		f, err := sourceFs.Create(filePath)
+		th.Ok(t, err)
+		f.Write(content)
+		f.Close()
+
+		sourceItem, err := catalog.NewItem(sourceFs, filePath)
+		th.Ok(t, err)
+		err = CopyFileTo(sourceFs, sourceItem.Path, sourceItem.ModificationTime, destinationFs, destinationPath)
+		th.Ok(t, err)
+		destinationItem, err := catalog.NewItem(destinationFs, destinationPath)
+		th.Ok(t, err)
+		th.Equals(t, sourceItem.Size, destinationItem.Size)
+		th.Equals(t, sourceItem.Md5Sum, destinationItem.Md5Sum)
+		th.Equals(t, sourceItem.ModificationTime, destinationItem.ModificationTime)
+	}
+
+	testFile("test1", []byte("some content"), "newTest1")
+	testFile("test2", []byte("some more content"), "./newTest2")
+	testFile("test3", []byte("some more content..."), "some_other_folder/test3")
+	th.Ok(t, sourceFs.MkdirAll("folder/structure/test", 0755))
+	buf := make([]byte, 1024*1024)
+	rand.Read(buf)
+	testFile("folder/structure/test/big_file", buf, "nested/other/folder/bigFile")
 }
