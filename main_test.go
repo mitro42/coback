@@ -73,13 +73,22 @@ func copyTestData(sourceFolder string, destinationFs afero.Fs) error {
 	return copyFolder(sourceFs, sourceFolder, destinationFs, sourceFolder)
 }
 
-// Copies a file between file systems, preserving the timestamps
+// Copies a file between file systems with the same relative path, preserving the timestamps
 func copyFileWithTimestamps(sourceFs afero.Fs, path string, destinationFs afero.Fs) error {
 	info, err := sourceFs.Stat(path)
 	if err != nil {
 		return errors.Wrapf(err, "Failed to copy file: %s", path)
 	}
 	return fsh.CopyFile(sourceFs, path, info.ModTime().Format(time.RFC3339Nano), destinationFs)
+}
+
+// Copies a file between file systems to a specified path, preserving the timestamps
+func copyFileWithTimestampsTo(sourceFs afero.Fs, sourcePath string, destinationFs afero.Fs, destinationPath string) error {
+	info, err := sourceFs.Stat(sourcePath)
+	if err != nil {
+		return errors.Wrapf(err, "Failed to copy file: %s", sourcePath)
+	}
+	return fsh.CopyFileTo(sourceFs, sourcePath, info.ModTime().Format(time.RFC3339Nano), destinationFs, destinationPath)
 }
 
 // Copies a folder with all its contents between two filesystems
@@ -510,8 +519,61 @@ func TestScenario4(t *testing.T) {
 	expectFileMissing(t, stagingFs, "2/friends/tom.jpg")
 }
 
-// New files are added to the staging between import rounds, that have not seen by CoBack before and are not present in any catalog.
-// Later some of these files are deleted. (user error)
+func TestScenario5(t *testing.T) {
+	// New files are added to staging between import rounds that have not seen by CoBack before
+	// and are not present in any catalog. Later some of these files are deleted then added again.
+	// This scenario does not deal with duplicates (files with same content).
+	// Technically this is a user error as the user should not add files to staging manually,
+	// but it could and should be handled by CoBack sensibly.
+	// 1. Import folder3, check staging
+	// 2. Copy folder2/friends/kara.jpg to staging/1 (user action)
+	// 3. Copy folder1/friends/tom.jpg to the root of staging/t.jpg, next to coback.catalog (user action)
+	// 4. Import folder2, check staging - most not stage kara.jpg
+	// 5. Move all files from staging/1 to colletion (user action)
+	// 6. Delete staging/t.jpg (user action)
+	// 7. Import folder1, check staging - most not stage tom.jpg
+
+	fs, err := prepareTestFs(t, "folder1", "folder2", "folder3")
+	th.Ok(t, err)
+	import1Fs, stagingFs, collectionFs, err := initializeFolders(fs, "folder1", "staging", "collection")
+	th.Ok(t, err)
+	import2Fs, stagingFs, collectionFs, err := initializeFolders(fs, "folder2", "staging", "collection")
+	th.Ok(t, err)
+	import3Fs, stagingFs, collectionFs, err := initializeFolders(fs, "folder3", "staging", "collection")
+	th.Ok(t, err)
+
+	// 1
+	err = run(import3Fs, stagingFs, collectionFs)
+	th.Ok(t, err)
+	expectFolder3Contents(t, stagingFs, "1")
+
+	// 2 (user action)
+	err = copyFileWithTimestampsTo(import1Fs, "friends/kara.jpg", stagingFs, "1/kara.jpg")
+	th.Ok(t, err)
+
+	// 3 (user action)
+	err = copyFileWithTimestampsTo(import2Fs, "friends/tom.jpg", stagingFs, "t.jpg")
+	th.Ok(t, err)
+
+	// 4
+	err = run(import2Fs, stagingFs, collectionFs)
+	th.Ok(t, err)
+	expectFile(t, stagingFs, "2/friends/jerry.jpg")
+	expectFileMissing(t, stagingFs, "2/friends/tom.jpg")
+
+	// 5 (user action)
+	moveFolder(stagingFs, "1", collectionFs, ".")
+	expectFileCount(t, stagingFs, 3) // ./2/family/daddy.jpg, ./2/friends/jerry.jpg, ./t.jpg
+
+	// 6 (user action)
+	err = stagingFs.Remove("t.jpg")
+	th.Ok(t, err)
+
+	// 7
+	err = run(import1Fs, stagingFs, collectionFs)
+	th.Ok(t, err)
+	expectFileMissing(t, stagingFs, "3/family/dad.jpg")
+}
 
 // File edited, to have new unique content while keeping the same name.
 // edited in collection
