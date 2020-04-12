@@ -188,6 +188,7 @@ func expectFileMissing(t *testing.T, fs afero.Fs, file string) {
 }
 
 func expectFolder1Contents(t *testing.T, fs afero.Fs, path string) {
+	t.Helper()
 	if path != "." {
 		fs = afero.NewBasePathFs(fs, path)
 	}
@@ -203,7 +204,8 @@ func expectFolder1Contents(t *testing.T, fs afero.Fs, path string) {
 }
 
 func expectFolder2Contents(t *testing.T, fs afero.Fs, path string) {
-	if path != "" {
+	t.Helper()
+	if path != "." {
 		fs = afero.NewBasePathFs(fs, path)
 	}
 	expectFileCount(t, fs, 5)
@@ -215,7 +217,8 @@ func expectFolder2Contents(t *testing.T, fs afero.Fs, path string) {
 }
 
 func expectFolder3Contents(t *testing.T, fs afero.Fs, path string) {
-	if path != "" {
+	t.Helper()
+	if path != "." {
 		fs = afero.NewBasePathFs(fs, path)
 	}
 	expectFileCount(t, fs, 5)
@@ -227,7 +230,8 @@ func expectFolder3Contents(t *testing.T, fs afero.Fs, path string) {
 }
 
 func expectFolder4Contents(t *testing.T, fs afero.Fs, path string) {
-	if path != "" {
+	t.Helper()
+	if path != "." {
 		fs = afero.NewBasePathFs(fs, path)
 	}
 	expectFileCount(t, fs, 7)
@@ -635,7 +639,55 @@ func TestScenario6(t *testing.T) {
 	expectFile(t, stagingFs, "1/holiday/view2.jpg")
 }
 
-// Starting from non-empty collection
+func TestScenario7(t *testing.T) {
+	// Starting from non-empty collection, with and without duplicates
+	//
+	// 1. Initialize the collection folder with folder3 - check contents
+	// 2. Import folder3, check staging - must stay empty
+	// 3. Import folder1, check staging - only family/dad.jpg and friends/kara.jpg should be staged
+	// 4. Re-initialize the collection folder with folder4
+	// 5. Check contents - should contain all files, with duplicates
+	// 6. Import folder4, check staging - must stay empty
+
+	fs, err := prepareTestFs(t, "folder1", "folder3")
+	th.Ok(t, err)
+
+	// 1
+	import1Fs, stagingFs, collectionFs, err := initializeFolders(fs, "folder1", "staging", "collection")
+	th.Ok(t, err)
+	import3Fs, stagingFs, collectionFs, err := initializeFolders(fs, "folder3", "staging", "collection")
+	th.Ok(t, err)
+	err = copyFolder(fs, "folder3", collectionFs, ".")
+	th.Ok(t, err)
+	expectFolder3Contents(t, collectionFs, ".")
+
+	// 2
+	err = run(import3Fs, stagingFs, collectionFs)
+	th.Ok(t, err)
+	expectFileCount(t, afero.NewBasePathFs(stagingFs, "1"), 0)
+
+	// 3
+	err = run(import1Fs, stagingFs, collectionFs)
+	th.Ok(t, err)
+	expectFileCount(t, afero.NewBasePathFs(stagingFs, "2"), 2)
+	expectFile(t, stagingFs, "2/family/dad.jpg")
+	expectFile(t, stagingFs, "2/friends/kara.jpg")
+
+	// 4
+	fs, err = prepareTestFs(t, "folder4")
+	th.Ok(t, err)
+
+	import4Fs, stagingFs, collectionFs, err := initializeFolders(fs, "folder4", "staging", "collection")
+	th.Ok(t, err)
+	err = copyFolder(fs, "folder4", collectionFs, ".")
+	th.Ok(t, err)
+	expectFolder4Contents(t, collectionFs, ".")
+
+	// 5
+	err = run(import4Fs, stagingFs, collectionFs)
+	th.Ok(t, err)
+	expectFileCount(t, afero.NewBasePathFs(stagingFs, "1"), 0)
+}
 
 // Starting from non-empty staging
 
