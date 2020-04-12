@@ -215,12 +215,12 @@ func TestSyncStagingNewFileThatIsAlreadyInStaging(t *testing.T) {
 	fsh.CopyFile(stagingFs, item.Path, item.ModificationTime, afero.NewBasePathFs(stagingFs, "subfolder"))
 
 	c, err := SyncCatalogWithStagingFolder(stagingFs, collectionCatalog)
-	th.NokPrefix(t, err, "File is already in the staging folder")
-	th.Equals(t, nil, c)
-
-	cRead, err := catalog.Read(stagingFs, catalog.CatalogFileName)
 	th.Ok(t, err)
-	th.Equals(t, cOrig, cRead)
+	item2, err := catalog.NewItem(stagingFs, "subfolder/test1.txt")
+	th.Ok(t, err)
+	cOrig.Add(*item2)
+
+	th.Equals(t, c, cOrig)
 }
 
 func TestSyncStagingNewFileThatIsAlreadyDeletedInStaging(t *testing.T) {

@@ -61,7 +61,8 @@ import (
 //  |    |- view1.jpg[10]
 //  |    |- view2.jpg[11]
 //  |    |- view3.jpg[12]
-//  |- view1.jpg[10]
+//  |    |- view3_orig.jpg[12]
+//  |- view1_safe.jpg[10]
 
 // Copies one folder of the pre-generated test data to the specified fs.
 func copyTestData(sourceFolder string, destinationFs afero.Fs) error {
@@ -223,6 +224,20 @@ func expectFolder3Contents(t *testing.T, fs afero.Fs, path string) {
 	expectFile(t, fs, "friends/conor.jpg")
 	expectFile(t, fs, "friends/markus.jpg")
 	expectFile(t, fs, "funny.png")
+}
+
+func expectFolder4Contents(t *testing.T, fs afero.Fs, path string) {
+	if path != "" {
+		fs = afero.NewBasePathFs(fs, path)
+	}
+	expectFileCount(t, fs, 7)
+	expectFile(t, fs, "holiday/public/view1.jpg")
+	expectFile(t, fs, "holiday/public/view2.jpg")
+	expectFile(t, fs, "holiday/view1.jpg")
+	expectFile(t, fs, "holiday/view2.jpg")
+	expectFile(t, fs, "holiday/view3.jpg")
+	expectFile(t, fs, "holiday/view3_orig.jpg")
+	expectFile(t, fs, "view1_safe.jpg")
 }
 
 func listFiles(label string, fs afero.Fs, folder string) {
@@ -575,6 +590,55 @@ func TestScenario5(t *testing.T) {
 	expectFileMissing(t, stagingFs, "3/family/dad.jpg")
 }
 
+func TestScenario6(t *testing.T) {
+	// Import folder has duplicates (both different folder/same name and same folder/different name)
+	// These files are expected to be imported multiple times, the same way as they are present in the import folder,
+	// regardless of the duplications.
+	// Files already in the collection should not be imported.
+	// 1. Import folder4, check staging - all files should be present
+	// 2. Import folder4 again, check staging - no new files should be staged
+	// 3. Copy folder4/holiday/view1.jpg and view3.jpg to collection (user action)
+	// 4. Delete all files and folders from staging including coback.catalog
+	// 5. Import folder4 again, check staging - no instances of view1 or view3 should be staged
+
+	fs, err := prepareTestFs(t, "folder4")
+	th.Ok(t, err)
+	import4Fs, stagingFs, collectionFs, err := initializeFolders(fs, "folder4", "staging", "collection")
+	th.Ok(t, err)
+
+	// 1
+	err = run(import4Fs, stagingFs, collectionFs)
+	th.Ok(t, err)
+	expectFolder4Contents(t, stagingFs, "1")
+
+	// 2
+	err = run(import4Fs, stagingFs, collectionFs)
+	th.Ok(t, err)
+	expectFileCount(t, afero.NewBasePathFs(stagingFs, "2"), 0)
+
+	// 3 (user action)
+	err = copyFileWithTimestampsTo(import4Fs, "holiday/view1.jpg", collectionFs, "view1.jpg")
+	th.Ok(t, err)
+	err = copyFileWithTimestampsTo(import4Fs, "holiday/view3.jpg", collectionFs, "holiday/view3.jpg")
+	th.Ok(t, err)
+
+	// 4
+	stagingFs.RemoveAll("1")
+	stagingFs.RemoveAll("2")
+	stagingFs.Remove("coback.catalog")
+
+	// 5
+	err = run(import4Fs, stagingFs, collectionFs)
+	th.Ok(t, err)
+	expectFileCount(t, afero.NewBasePathFs(stagingFs, "1"), 2)
+	expectFile(t, stagingFs, "1/holiday/public/view2.jpg")
+	expectFile(t, stagingFs, "1/holiday/view2.jpg")
+}
+
+// Starting from non-empty collection
+
+// Starting from non-empty staging
+
 // File edited, to have new unique content while keeping the same name.
 // edited in collection
 // - file is overwritten with new content (white balance change, old image is discarded)
@@ -606,12 +670,6 @@ func TestScenario5(t *testing.T) {
 //   ---> doesn't matter (cannot detect either) it is the same as if the file was deleted without any change
 
 // edited in import - N/A
-
-// Import folder has duplicates (both different folder/same name and same folder/different name)
-
-// Starting from non-empty collection
-
-// Starting from non-empty staging
 
 // Quick scans
 

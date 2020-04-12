@@ -55,5 +55,6 @@ create_file integration_test_data/folder4/holiday/view1.jpg
 create_file integration_test_data/folder4/holiday/view2.jpg
 create_file integration_test_data/folder4/holiday/view3.jpg
 cp integration_test_data/folder4/holiday/view1.jpg integration_test_data/folder4/holiday/public
+cp integration_test_data/folder4/holiday/view1.jpg integration_test_data/folder4/view1_safe.jpg
 cp integration_test_data/folder4/holiday/view2.jpg integration_test_data/folder4/holiday/public
-cp integration_test_data/folder4/holiday/view1.jpg integration_test_data/folder4/
+cp integration_test_data/folder4/holiday/view3.jpg integration_test_data/folder4/holiday/view3_orig.jpg

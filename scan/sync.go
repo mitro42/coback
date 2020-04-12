@@ -90,9 +90,6 @@ func SyncCatalogWithStagingFolder(fs afero.Fs, collection catalog.Catalog) (cata
 		if c.IsDeletedChecksum(item.Md5Sum) {
 			return nil, fmt.Errorf("File is already deleted from the staging folder: %v", item.Path)
 		}
-		if c.IsKnownChecksum(item.Md5Sum) {
-			return nil, fmt.Errorf("File is already in the staging folder: %v", item.Path)
-		}
 		c.Add(*item)
 	}
 
