@@ -689,6 +689,39 @@ func TestScenario7(t *testing.T) {
 	expectFileCount(t, afero.NewBasePathFs(stagingFs, "1"), 0)
 }
 
+func TestScenario8(t *testing.T) {
+	// Starting from non-empty staging folder that doesn't contain a catalog.
+	// We assume this is a user error and terminate with an error message.
+	//
+	// 1. Initialize the staging folder with folder1, and the others with empty folder
+	// 2. Try to run the import - must return error
+	// 3. Re-initialize staging with only a folder named coback.catalog in it
+	// 4. Try to run the import - must return error
+
+	// 1
+	fs, err := prepareTestFs(t, "folder1")
+	th.Ok(t, err)
+	importFs, stagingFs, collectionFs, err := initializeFolders(fs, "import", "folder1", "collection")
+	th.Ok(t, err)
+
+	// 2
+	err = run(importFs, stagingFs, collectionFs)
+	th.NokPrefix(t, err, "Staging folder is not empty and doesn't have a catalog")
+
+	// 3
+	fs, err = prepareTestFs(t, "folder1")
+	th.Ok(t, err)
+	importFs, stagingFs, collectionFs, err = initializeFolders(fs, "folder1", "staging", "collection")
+	th.Ok(t, err)
+	err = stagingFs.Mkdir("coback.catalog", os.ModePerm)
+	th.Ok(t, err)
+
+	// 4
+	err = run(importFs, stagingFs, collectionFs)
+	th.Nok(t, err, "coback.catalog is a folder")
+
+}
+
 // Starting from non-empty staging
 
 // File edited, to have new unique content while keeping the same name.

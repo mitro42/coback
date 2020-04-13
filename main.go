@@ -50,7 +50,35 @@ func initializeFolders(baseFs afero.Fs, fromPath string, stagingPath string, toP
 	return
 }
 
+// Checks if staging folder can be used by coback.
+// It either must have a catalog exist (it was used previously), or the folder must be empty (it wasn't used yet)
+func checkUsableStagingFolder(stagingFs afero.Fs) error {
+	if stagingCatalogFI, err := stagingFs.Stat(catalog.CatalogFileName); err != nil {
+		fail := false
+		afero.Walk(stagingFs, ".", func(path string, info os.FileInfo, err error) error {
+			if path == "." {
+				return nil
+			}
+			fail = true
+			return errors.New("File found")
+		})
+		if fail {
+			return errors.New("Staging folder is not empty and doesn't have a catalog")
+		}
+	} else {
+		if stagingCatalogFI.IsDir() {
+			return errors.New(catalog.CatalogFileName + " is a folder")
+		}
+	}
+	return nil
+}
+
 func run(importFs afero.Fs, stagingFs afero.Fs, collectionFs afero.Fs) error {
+	err := checkUsableStagingFolder(stagingFs)
+	if err != nil {
+		return err
+	}
+
 	importCatalog, err := scan.SyncCatalogWithImportFolder(importFs)
 	if err != nil {
 		return errors.Wrapf(err, "Cannot sync folder contents")
