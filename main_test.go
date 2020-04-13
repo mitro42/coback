@@ -537,16 +537,91 @@ func TestScenario4(t *testing.T) {
 	th.Ok(t, err)
 	expectFileMissing(t, stagingFs, "2/friends/tom.jpg")
 }
+func TestScenario4D(t *testing.T) {
+	// New files are added to the collection between import rounds that were already present in the collection.
+	// Later some of these files are deleted then imported again.
+	// Imports should not return error if duplicates are found.
+	// Similar to TestScenrio4 but this one deals with duplicated files.
+
+	// 1. Import folder3, check staging
+	// 2. Move all files from staging to colletion (user action)
+	// 3. Copy folder2/friends/markus.jpg and folder2/friends/tom.jpg to collection/buddies and collection/guys (user action)
+	// 4. Import folder1, check staging - most stage only dad.jpg and kara.jpg
+	// 5. Delete all instances of tom.jpg from collection, and delete all but one markus.jpg (user action)
+	// 6. Import folder2, check staging - most only stage jerry.jpg
+	// 7. Delete the last instance of markus.jpg  (user action)
+	// 8. Import folder2, check staging - most not stage tom.jpg
+
+	fs, err := prepareTestFs(t, "folder1", "folder2", "folder3")
+	th.Ok(t, err)
+	import1Fs, stagingFs, collectionFs, err := initializeFolders(fs, "folder1", "staging", "collection")
+	th.Ok(t, err)
+	import2Fs, stagingFs, collectionFs, err := initializeFolders(fs, "folder2", "staging", "collection")
+	th.Ok(t, err)
+	import3Fs, stagingFs, collectionFs, err := initializeFolders(fs, "folder3", "staging", "collection")
+	th.Ok(t, err)
+
+	// 1
+	err = run(import3Fs, stagingFs, collectionFs)
+	th.Ok(t, err)
+	expectFolder3Contents(t, stagingFs, "1")
+
+	// 2 (user action)
+	moveFolder(stagingFs, "1", collectionFs, ".")
+	expectFileCount(t, stagingFs, 0)
+
+	// 3 (user action)
+	err = copyFileWithTimestampsTo(import2Fs, "friends/markus.jpg", collectionFs, "buddies/markus.jpg")
+	th.Ok(t, err)
+	err = copyFileWithTimestampsTo(import2Fs, "friends/markus.jpg", collectionFs, "guys/markus.jpg")
+	th.Ok(t, err)
+	err = copyFileWithTimestampsTo(import2Fs, "friends/tom.jpg", collectionFs, "buddies/tom.jpg")
+	th.Ok(t, err)
+	err = copyFileWithTimestampsTo(import2Fs, "friends/tom.jpg", collectionFs, "guys/tom2.jpg")
+	th.Ok(t, err)
+
+	// 4
+	err = run(import1Fs, stagingFs, collectionFs)
+	th.Ok(t, err)
+	expectFileCount(t, afero.NewBasePathFs(stagingFs, "1"), 2)
+	expectFile(t, stagingFs, "1/friends/kara.jpg")
+	expectFile(t, stagingFs, "1/family/dad.jpg")
+
+	// 5 (user action)
+	err = collectionFs.Remove("buddies/tom.jpg")
+	th.Ok(t, err)
+	err = collectionFs.Remove("guys/tom2.jpg")
+	th.Ok(t, err)
+	err = collectionFs.Remove("friends/markus.jpg")
+	th.Ok(t, err)
+	err = collectionFs.Remove("buddies/markus.jpg")
+	th.Ok(t, err)
+
+	// 6
+	err = run(import2Fs, stagingFs, collectionFs)
+	th.Ok(t, err)
+	expectFileCount(t, afero.NewBasePathFs(stagingFs, "2"), 1)
+	expectFile(t, stagingFs, "2/friends/jerry.jpg")
+
+	// 7 (user action)
+	err = collectionFs.Remove("guys/markus.jpg")
+	th.Ok(t, err)
+
+	// 8
+	err = run(import2Fs, stagingFs, collectionFs)
+	th.Ok(t, err)
+	expectFileCount(t, afero.NewBasePathFs(stagingFs, "3"), 0)
+}
 
 func TestScenario5(t *testing.T) {
 	// New files are added to staging between import rounds that have not seen by CoBack before
-	// and are not present in any catalog. Later some of these files are deleted then added again.
+	// and are not present in any catalog. Later some of these files are deleted.
 	// This scenario does not deal with duplicates (files with same content).
 	// Technically this is a user error as the user should not add files to staging manually,
 	// but it could and should be handled by CoBack sensibly.
 	// 1. Import folder3, check staging
 	// 2. Copy folder2/friends/kara.jpg to staging/1 (user action)
-	// 3. Copy folder1/friends/tom.jpg to the root of staging/t.jpg, next to coback.catalog (user action)
+	// 3. Copy folder1/friends/tom.jpg to staging/t.jpg, next to coback.catalog (user action)
 	// 4. Import folder2, check staging - most not stage kara.jpg
 	// 5. Move all files from staging/1 to colletion (user action)
 	// 6. Delete staging/t.jpg (user action)
@@ -594,10 +669,83 @@ func TestScenario5(t *testing.T) {
 	expectFileMissing(t, stagingFs, "3/family/dad.jpg")
 }
 
+func TestScenario5D(t *testing.T) {
+	// New files are added to staging between import rounds that were already present in the staging folder.
+	// Later some of these files are deleted.
+	// Imports should not return error if duplicates are found.
+	// Similar to TestScenrio4 but this one deals with duplicated files.
+
+	// Technically this is a user error as the user should not add files to staging manually,
+	// but it could and should be handled by CoBack sensibly.
+	// 1. Import folder3, check staging
+	// 2. Copy friends/markus.jpg to buddies/mar.jpg (user action)
+	// 3. Copy family/mom.jpg to staging/m.jpg, and m2.jpg next to coback.catalog (user action)
+	// 4. Import folder2, check staging - most not stage markus.jpg and mom.jpg
+	// 5. Delete m.jpg, mom.jpg and all copies of markus.jpg
+	// 6. Import folder2, check staging - must stay empty.
+	// 7. Delete staging/m2.jpg (user action)
+	// 8. Import folder2, check staging - must stay empty.
+
+	fs, err := prepareTestFs(t, "folder2", "folder3")
+	th.Ok(t, err)
+	// import1Fs, stagingFs, collectionFs, err := initializeFolders(fs, "folder1", "staging", "collection")
+	// th.Ok(t, err)
+	import2Fs, stagingFs, collectionFs, err := initializeFolders(fs, "folder2", "staging", "collection")
+	th.Ok(t, err)
+	import3Fs, stagingFs, collectionFs, err := initializeFolders(fs, "folder3", "staging", "collection")
+	th.Ok(t, err)
+
+	// 1
+	err = run(import3Fs, stagingFs, collectionFs)
+	th.Ok(t, err)
+	expectFolder3Contents(t, stagingFs, "1")
+
+	// 2 (user action)
+	err = copyFileWithTimestampsTo(import2Fs, "friends/markus.jpg", stagingFs, "1/buddies/mar.jpg")
+	th.Ok(t, err)
+
+	// 3 (user action)
+	err = copyFileWithTimestampsTo(import2Fs, "family/mom.jpg", stagingFs, "m.jpg")
+	th.Ok(t, err)
+	err = copyFileWithTimestampsTo(import2Fs, "family/mom.jpg", stagingFs, "m2.jpg")
+	th.Ok(t, err)
+
+	// 4
+	err = run(import2Fs, stagingFs, collectionFs)
+	th.Ok(t, err)
+	expectFileMissing(t, stagingFs, "2/friends/markus.jpg")
+	expectFileMissing(t, stagingFs, "2/family/mom.jpg")
+
+	// 5 (user action)
+	err = stagingFs.Remove("m.jpg")
+	th.Ok(t, err)
+	err = stagingFs.Remove("1/family/mom.jpg")
+	th.Ok(t, err)
+	err = stagingFs.Remove("1/friends/markus.jpg")
+	th.Ok(t, err)
+	err = stagingFs.Remove("1/buddies/mar.jpg")
+	th.Ok(t, err)
+
+	// 6
+	err = run(import2Fs, stagingFs, collectionFs)
+	th.Ok(t, err)
+	expectFileCount(t, afero.NewBasePathFs(stagingFs, "3"), 0)
+
+	// 7 (user action)
+	err = stagingFs.Remove("m2.jpg")
+	th.Ok(t, err)
+
+	// 8
+	err = run(import2Fs, stagingFs, collectionFs)
+	th.Ok(t, err)
+	expectFileCount(t, afero.NewBasePathFs(stagingFs, "3"), 0)
+}
+
 func TestScenario6(t *testing.T) {
 	// Import folder has duplicates (both different folder/same name and same folder/different name)
 	// These files are expected to be imported multiple times, the same way as they are present in the import folder,
 	// regardless of the duplications.
+	// Imports should not return error if duplicates are found.
 	// Files already in the collection should not be imported.
 	// 1. Import folder4, check staging - all files should be present
 	// 2. Import folder4 again, check staging - no new files should be staged
