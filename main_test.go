@@ -719,10 +719,75 @@ func TestScenario8(t *testing.T) {
 	// 4
 	err = run(importFs, stagingFs, collectionFs)
 	th.Nok(t, err, "coback.catalog is a folder")
-
 }
 
-// Starting from non-empty staging
+func TestScenario9(t *testing.T) {
+	// An folder is imported several times. Files are added and deleted between runs.
+	// E.g. All pictures taken by a camera are periodically saved to a folder,
+	// which is then imported many times by CoBack.
+	//
+	// 1. Import folder3, check staging - all files should be present
+	// 2. Copy folder1/family/dad.jpg into folder3 (user action)
+	// 3. Import  again, check staging - only dad.jpg should be staged
+	// 4. Delete mom.jpg (user action)
+	// 5. Import  again, check staging - nothing should be staged
+	// 6. Delete sis.jpg and copy folder1/friends/kara.jpg to folder3 (user action)
+	// 7. Import  again, check staging - only kara.jpg should be staged
+	// 8. Restore sis.jpg (user action)
+	// 9. Import  again, check staging - nothing should be staged
+
+	// 1
+	fs, err := prepareTestFs(t, "folder1", "folder3")
+	th.Ok(t, err)
+	import1Fs, stagingFs, collectionFs, err := initializeFolders(fs, "folder1", "staging", "collection")
+	th.Ok(t, err)
+	import3Fs, stagingFs, collectionFs, err := initializeFolders(fs, "folder3", "staging", "collection")
+	th.Ok(t, err)
+
+	err = run(import3Fs, stagingFs, collectionFs)
+	th.Ok(t, err)
+	expectFolder3Contents(t, stagingFs, "1")
+
+	// 2 (user action)
+	err = copyFileWithTimestampsTo(import1Fs, "family/dad.jpg", import3Fs, "dad.jpg")
+	th.Ok(t, err)
+
+	// 3
+	err = run(import3Fs, stagingFs, collectionFs)
+	th.Ok(t, err)
+	expectFileCount(t, afero.NewBasePathFs(stagingFs, "2"), 1)
+	expectFile(t, stagingFs, "2/dad.jpg")
+
+	// 4 (user action)
+	err = import3Fs.Remove("family/mom.jpg")
+	th.Ok(t, err)
+
+	// 5
+	err = run(import3Fs, stagingFs, collectionFs)
+	th.Ok(t, err)
+	expectFileCount(t, afero.NewBasePathFs(stagingFs, "3"), 0)
+
+	// 6 (user action)
+	err = import3Fs.Remove("family/sis.jpg")
+	th.Ok(t, err)
+	err = copyFileWithTimestampsTo(import1Fs, "friends/kara.jpg", import3Fs, "buddies/kara.jpg")
+	th.Ok(t, err)
+
+	// 7
+	err = run(import3Fs, stagingFs, collectionFs)
+	th.Ok(t, err)
+	expectFileCount(t, afero.NewBasePathFs(stagingFs, "4"), 1)
+	expectFile(t, stagingFs, "4/buddies/kara.jpg")
+
+	// 8 (user action)
+	err = copyFileWithTimestampsTo(import1Fs, "family/sis.jpg", import3Fs, "family/sis.jpg")
+	th.Ok(t, err)
+
+	// 9
+	err = run(import3Fs, stagingFs, collectionFs)
+	th.Ok(t, err)
+	expectFileCount(t, afero.NewBasePathFs(stagingFs, "5"), 0)
+}
 
 // File edited, to have new unique content while keeping the same name.
 // edited in collection
