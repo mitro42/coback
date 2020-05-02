@@ -12,6 +12,8 @@ import (
 	"github.com/spf13/afero"
 )
 
+const incompleteRunNoticeFileName = "!!!_COBACK_RUN_WAS_INTERRUPTED"
+
 // stageFiles creates a new numbered folder in the staging folder and copies all files
 // in the items channel from the import FS to this new folder in the staging FS.
 func stageFiles(importFs afero.Fs, importName string, items <-chan catalog.Item, stagingFs afero.Fs) error {
@@ -120,6 +122,22 @@ func run(importFs afero.Fs, importName string, stagingFs afero.Fs, collectionFs 
 	return nil
 }
 
+func createIncompleteRunNotice(fs afero.Fs) error {
+	f, err := fs.OpenFile(incompleteRunNoticeFileName, os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	f.Write([]byte("The operation terminated prematurely. This can happen if the scanning of the folders was interrupted, or copying the files failed."))
+
+	return nil
+}
+
+func removeIncompleteRunNotice(fs afero.Fs) {
+	fs.Remove(incompleteRunNoticeFileName)
+}
+
 func main() {
 	if len(os.Args) != 4 {
 		fmt.Printf("Usage: %v import-from-path staging-path collection-path\n", os.Args[0])
@@ -134,6 +152,9 @@ func main() {
 	}
 	_, importName := filepath.Split(os.Args[1])
 
+	noticeFs := afero.NewBasePathFs(stagingFs, importName)
+	createIncompleteRunNotice(noticeFs)
+	defer removeIncompleteRunNotice(noticeFs)
 
 	err = run(importFs, importName, stagingFs, collectionFs)
 	if err != nil {

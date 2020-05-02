@@ -253,6 +253,15 @@ func listFiles(label string, fs afero.Fs, folder string) {
 	})
 }
 
+func TestCreateIncompleteRunNotice(t *testing.T) {
+	fs := afero.NewMemMapFs()
+	err := createIncompleteRunNotice(fs)
+	th.Ok(t, err)
+	expectFile(t, fs, incompleteRunNoticeFileName)
+	removeIncompleteRunNotice(fs)
+	expectFileMissing(t, fs, incompleteRunNoticeFileName)
+}
+
 func TestScenario1(t *testing.T) {
 	// Simple use case, multiple rounds of import with reimporting already seen files.
 	// Each of the following cases are present:
