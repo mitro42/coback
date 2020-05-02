@@ -123,7 +123,7 @@ func main() {
 	}
 	baseFs := afero.NewOsFs()
 
-	importFs, stagingFs, collectionFs, err := initializeFolders(baseFs, os.Args[0], os.Args[1], os.Args[2])
+	importFs, stagingFs, collectionFs, err := initializeFolders(baseFs, os.Args[1], os.Args[2], os.Args[3])
 	if err != nil {
 		fmt.Printf("Cannot initialize folder: %v\n", err)
 		os.Exit(1)
