@@ -32,18 +32,22 @@ func stageFiles(importFs afero.Fs, items <-chan catalog.Item, stagingFs afero.Fs
 	return nil
 }
 
+// initializeFolders checks that the specified paths exist and they are not files.
+// If any of the folders do not exist they will be created.
+// Returns three file systems, one based in each of the specified folders.
+// Does not create or check catalog files.
 func initializeFolders(baseFs afero.Fs, fromPath string, stagingPath string, toPath string) (importFs afero.Fs, stagingFs afero.Fs, collectionFs afero.Fs, err error) {
-	importFs, err = scan.InitializeFolder(baseFs, fromPath, "Import")
+	importFs, err = scan.InitializeFolder(baseFs, fromPath)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	stagingFs, err = scan.InitializeFolder(baseFs, stagingPath, "Staging")
+	stagingFs, err = scan.InitializeFolder(baseFs, stagingPath)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	collectionFs, err = scan.InitializeFolder(baseFs, toPath, "Collection")
+	collectionFs, err = scan.InitializeFolder(baseFs, toPath)
 	if err != nil {
 		return nil, nil, nil, err
 	}

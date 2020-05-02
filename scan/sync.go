@@ -11,7 +11,7 @@ import (
 
 // InitializeFolder prepares a folder to be used by CoBack.
 // Creates the folder if necessary and returns an afero.Fs which roots at the specified folder.
-func InitializeFolder(baseFs afero.Fs, path string, name string) (afero.Fs, error) {
+func InitializeFolder(baseFs afero.Fs, path string) (afero.Fs, error) {
 	if path == "." {
 		return baseFs, nil
 	}

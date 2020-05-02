@@ -14,7 +14,7 @@ import (
 
 func TestSyncImportCreate(t *testing.T) {
 	memFs := afero.NewMemMapFs()
-	importFs, err := InitializeFolder(memFs, "holiday_pictures", "Import")
+	importFs, err := InitializeFolder(memFs, "holiday_pictures")
 	th.Ok(t, err)
 	c, err := SyncCatalogWithImportFolder(importFs)
 	th.Ok(t, err)
@@ -25,7 +25,7 @@ func TestSyncImportCreate(t *testing.T) {
 func TestSyncImportStart(t *testing.T) {
 	basePath, _ := os.Getwd()
 	fs := fsh.CreateSafeFs(filepath.Dir(basePath))
-	importFs, err := InitializeFolder(fs, "test_data", "Import")
+	importFs, err := InitializeFolder(fs, "test_data")
 	th.Ok(t, err)
 	c, err := SyncCatalogWithImportFolder(importFs)
 	th.Ok(t, err)
@@ -41,7 +41,7 @@ func TestSyncImportStart(t *testing.T) {
 func TestSyncImportWhenCatalogIsUpToDate(t *testing.T) {
 	basePath, _ := os.Getwd()
 	fs := fsh.CreateSafeFs(filepath.Dir(basePath))
-	importFs, err := InitializeFolder(fs, "test_data", "Import")
+	importFs, err := InitializeFolder(fs, "test_data")
 	th.Ok(t, err)
 	cSynced, err := SyncCatalogWithImportFolder(importFs)
 	th.Ok(t, err)
@@ -57,7 +57,7 @@ func TestSyncImportWhenCatalogIsUpToDate(t *testing.T) {
 func TestSyncImportWhenFileRemovedFromDisk(t *testing.T) {
 	fs := createMemFsTestData()
 
-	importFs, err := InitializeFolder(fs, "test_data", "Import")
+	importFs, err := InitializeFolder(fs, "test_data")
 	th.Ok(t, err)
 	_, err = SyncCatalogWithImportFolder(importFs)
 	th.Ok(t, err)
@@ -78,7 +78,7 @@ func TestSyncImportWhenFileRemovedFromDisk(t *testing.T) {
 func TestSyncImportWhenFileAddedToDisk(t *testing.T) {
 	fs := createMemFsTestData()
 
-	importFs, err := InitializeFolder(fs, "test_data", "Import")
+	importFs, err := InitializeFolder(fs, "test_data")
 	th.Ok(t, err)
 	_, err = SyncCatalogWithImportFolder(importFs)
 	th.Ok(t, err)
@@ -101,7 +101,7 @@ func TestSyncImportWhenFileAddedToDisk(t *testing.T) {
 func TestSyncImportWhenFileAddedAndDeleted(t *testing.T) {
 	fs := createMemFsTestData()
 
-	importFs, err := InitializeFolder(fs, "test_data", "Import")
+	importFs, err := InitializeFolder(fs, "test_data")
 	th.Ok(t, err)
 	cOrig, err := SyncCatalogWithImportFolder(importFs)
 	th.Ok(t, err)
@@ -128,7 +128,7 @@ func TestSyncImportWhenFileAddedAndDeleted(t *testing.T) {
 func TestSyncImportWhenFileHashModified(t *testing.T) {
 	fs := createMemFsTestData()
 
-	importFs, err := InitializeFolder(fs, "test_data", "Import")
+	importFs, err := InitializeFolder(fs, "test_data")
 	th.Ok(t, err)
 	cOrig, err := SyncCatalogWithImportFolder(importFs)
 	th.Ok(t, err)

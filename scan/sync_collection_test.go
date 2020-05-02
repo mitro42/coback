@@ -13,7 +13,7 @@ import (
 
 func TestSyncCollectionCreate(t *testing.T) {
 	memFs := afero.NewMemMapFs()
-	collectionFs, err := InitializeFolder(memFs, "photos", "Collection")
+	collectionFs, err := InitializeFolder(memFs, "photos")
 	th.Ok(t, err)
 	c, err := SyncCatalogWithCollectionFolder(collectionFs)
 	th.Ok(t, err)
@@ -24,7 +24,7 @@ func TestSyncCollectionCreate(t *testing.T) {
 func TestSyncCollectionStart(t *testing.T) {
 	basePath, _ := os.Getwd()
 	fs := fsh.CreateSafeFs(filepath.Dir(basePath))
-	collectionFs, err := InitializeFolder(fs, "test_data", "Collection")
+	collectionFs, err := InitializeFolder(fs, "test_data")
 	th.Ok(t, err)
 	c, err := SyncCatalogWithCollectionFolder(collectionFs)
 	th.Ok(t, err)
@@ -40,7 +40,7 @@ func TestSyncCollectionStart(t *testing.T) {
 func TestSyncCollectionWhenCatalogIsUpToDate(t *testing.T) {
 	basePath, _ := os.Getwd()
 	fs := fsh.CreateSafeFs(filepath.Dir(basePath))
-	collectionFs, err := InitializeFolder(fs, "test_data", "Collection")
+	collectionFs, err := InitializeFolder(fs, "test_data")
 	th.Ok(t, err)
 	cSynced, err := SyncCatalogWithCollectionFolder(collectionFs)
 	th.Ok(t, err)
@@ -56,7 +56,7 @@ func TestSyncCollectionWhenCatalogIsUpToDate(t *testing.T) {
 func TestSyncCollectionWhenNonDuplicateFileRemovedFromDisk(t *testing.T) {
 	fs := createMemFsTestData()
 
-	collectionFs, err := InitializeFolder(fs, "test_data", "Collection")
+	collectionFs, err := InitializeFolder(fs, "test_data")
 	th.Ok(t, err)
 	_, err = SyncCatalogWithCollectionFolder(collectionFs)
 	th.Ok(t, err)
@@ -81,7 +81,7 @@ func TestSyncCollectionWhenNonDuplicateFileRemovedFromDisk(t *testing.T) {
 func TestSyncCollectionWhenDuplicateFileRemovedFromDisk(t *testing.T) {
 	fs := createMemFsTestData()
 
-	collectionFs, err := InitializeFolder(fs, "test_data", "Collection")
+	collectionFs, err := InitializeFolder(fs, "test_data")
 	th.Ok(t, err)
 	item, err := catalog.NewItem(collectionFs, "test1.txt")
 	th.Ok(t, err)
@@ -124,7 +124,7 @@ func TestSyncCollectionWhenDuplicateFileRemovedFromDisk(t *testing.T) {
 func TestSyncCollectionWhenFileAddedToDisk(t *testing.T) {
 	fs := createMemFsTestData()
 
-	collectionFs, err := InitializeFolder(fs, "test_data", "Collection")
+	collectionFs, err := InitializeFolder(fs, "test_data")
 	th.Ok(t, err)
 	_, err = SyncCatalogWithCollectionFolder(collectionFs)
 	th.Ok(t, err)
@@ -147,7 +147,7 @@ func TestSyncCollectionWhenFileAddedToDisk(t *testing.T) {
 func TestSyncCollectionWhenFileWithDeletedChecksumAddedToDisk(t *testing.T) {
 	fs := createMemFsTestData()
 
-	collectionFs, err := InitializeFolder(fs, "test_data", "Collection")
+	collectionFs, err := InitializeFolder(fs, "test_data")
 	th.Ok(t, err)
 	cOrig, err := SyncCatalogWithCollectionFolder(collectionFs)
 	th.Ok(t, err)
@@ -178,7 +178,7 @@ func TestSyncCollectionWhenFileWithDeletedChecksumAddedToDisk(t *testing.T) {
 func TestSyncCollectionWhenFileModifiedOnDisk(t *testing.T) {
 	fs := createMemFsTestData()
 
-	collectionFs, err := InitializeFolder(fs, "test_data", "Collection")
+	collectionFs, err := InitializeFolder(fs, "test_data")
 	th.Ok(t, err)
 	_, err = SyncCatalogWithCollectionFolder(collectionFs)
 	th.Ok(t, err)
@@ -205,7 +205,7 @@ func TestSyncCollectionWhenFileModifiedOnDisk(t *testing.T) {
 func TestSyncCollectionWhenFileModifiedOnDiskToHaveADeletedCheckSum(t *testing.T) {
 	fs := createMemFsTestData()
 
-	collectionFs, err := InitializeFolder(fs, "test_data", "Collection")
+	collectionFs, err := InitializeFolder(fs, "test_data")
 	th.Ok(t, err)
 	cOrig, err := SyncCatalogWithCollectionFolder(collectionFs)
 	th.Ok(t, err)
