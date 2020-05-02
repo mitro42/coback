@@ -28,7 +28,20 @@ func TestNextUnusedFolder(t *testing.T) {
 	th.Ok(t, err)
 	f.Close()
 	th.Equals(t, "5", NextUnusedFolder(fs))
-	for i := 5; i <= 102; i++ {
+	fs.MkdirAll("5_", 0755)
+	f, err = fs.Create("6_file")
+	th.Ok(t, err)
+	f.Close()
+	th.Equals(t, "7", NextUnusedFolder(fs))
+	fs.MkdirAll("7", 0755)
+	fs.MkdirAll("2_dir", 0755)
+	fs.MkdirAll("8_dir", 0755)
+	fs.MkdirAll("9_other", 0755)
+	fs.MkdirAll("10-", 0755)
+	th.Equals(t, "10", NextUnusedFolder(fs))
+	fs.MkdirAll("10_", 0755)
+
+	for i := 11; i <= 102; i++ {
 		fs.MkdirAll(strconv.Itoa(i), 0755)
 		th.Equals(t, strconv.Itoa(i+1), NextUnusedFolder(fs))
 	}

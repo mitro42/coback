@@ -175,6 +175,7 @@ func expectFileCount(t *testing.T, fs afero.Fs, expected int) {
 
 // Checks that a file is present in fs and fails the test if not.
 func expectFile(t *testing.T, fs afero.Fs, file string) {
+	t.Helper()
 	stat, err := fs.Stat(file)
 	th.Ok(t, err)
 	th.Equals(t, false, stat.IsDir())
@@ -182,6 +183,7 @@ func expectFile(t *testing.T, fs afero.Fs, file string) {
 
 // Checks that a file is NOT present in fs and fails the test it is present
 func expectFileMissing(t *testing.T, fs afero.Fs, file string) {
+	t.Helper()
 	stat, err := fs.Stat(file)
 	th.Equals(t, stat, nil)
 	th.NokPrefix(t, err, "open")
@@ -269,37 +271,40 @@ func TestScenario1(t *testing.T) {
 	th.Ok(t, err)
 	import1Fs, stagingFs, collectionFs, err := initializeFolders(fs, "folder1", "staging", "collection")
 	th.Ok(t, err)
+
 	// 1
-	err = run(import1Fs, stagingFs, collectionFs)
+	err = run(import1Fs, "folder1", stagingFs, collectionFs)
 	th.Ok(t, err)
 	expectFolder1Contents(t, import1Fs, ".")
-	expectFolder1Contents(t, stagingFs, "1")
+	expectFolder1Contents(t, stagingFs, "1_folder1")
 
 	// 2 (user action)
-	moveFolder(stagingFs, "1", collectionFs, ".")
+	err = moveFolder(stagingFs, "1_folder1", collectionFs, ".")
+	th.Ok(t, err)
 	expectFolder1Contents(t, collectionFs, ".")
 
 	// 3
 	import2Fs, stagingFs, collectionFs, err := initializeFolders(fs, "folder2", "staging", "collection")
-	err = run(import2Fs, stagingFs, collectionFs)
+	err = run(import2Fs, "folder2", stagingFs, collectionFs)
 	th.Ok(t, err)
 	expectFolder1Contents(t, collectionFs, ".")
 	expectFolder2Contents(t, import2Fs, ".")
 	expectFileCount(t, stagingFs, 2)
-	expectFile(t, stagingFs, "1/friends/tom.jpg")
-	expectFile(t, stagingFs, "1/friends/jerry.jpg")
+	expectFile(t, stagingFs, "1_folder2/friends/tom.jpg")
+	expectFile(t, stagingFs, "1_folder2/friends/jerry.jpg")
 
 	// 4 (user action)
-	moveFolder(stagingFs, "1", collectionFs, ".")
+	err = moveFolder(stagingFs, "1_folder2", collectionFs, ".")
+	th.Ok(t, err)
 	expectFileCount(t, stagingFs, 0)
 
 	// 5
-	err = run(import1Fs, stagingFs, collectionFs)
+	err = run(import1Fs, "folder1", stagingFs, collectionFs)
 	th.Ok(t, err)
 	expectFileCount(t, stagingFs, 0)
 
 	// 6
-	err = run(import2Fs, stagingFs, collectionFs)
+	err = run(import2Fs, "folder2", stagingFs, collectionFs)
 	th.Ok(t, err)
 	expectFileCount(t, stagingFs, 0)
 }
@@ -319,7 +324,7 @@ func TestScenario1(t *testing.T) {
 // 	import1Fs, stagingFs, collectionFs, err := initializeFolders(fs, "folder1", "staging", "collection")
 // 	th.Ok(t, err)
 // 	// 1
-// 	err = run(import1Fs, stagingFs, collectionFs)
+// 	err = run(import1Fs, "folder1", stagingFs, collectionFs)
 // 	th.Ok(t, err)
 // 	expectFolder1Contents(t, import1Fs, ".")
 // 	expectFolder1Contents(t, stagingFs, "1")
@@ -331,7 +336,7 @@ func TestScenario1(t *testing.T) {
 
 // 	// 3
 // 	import2Fs, stagingFs, collectionFs, err := initializeFolders(fs, "folder2", "staging", "collection")
-// 	err = run(import2Fs, stagingFs, collectionFs)
+// 	err = run(import2Fs, "folder2",stagingFs, collectionFs)
 // 	th.Ok(t, err)
 // 	expectFolder1Contents(t, collectionFs, ".")
 // 	expectFolder2Contents(t, import2Fs, "")
@@ -344,12 +349,12 @@ func TestScenario1(t *testing.T) {
 // 	expectFileCount(t, stagingFs, 9)
 
 // 	// 5
-// 	err = run(import1Fs, stagingFs, collectionFs)
+// 	err = run(import1Fs, "folder1", stagingFs, collectionFs)
 // 	th.Ok(t, err)
 // 	expectFileCount(t, stagingFs, 9)
 
 // 	// 6
-// 	err = run(import2Fs, stagingFs, collectionFs)
+// 	err = run(import2Fs, "folder2",stagingFs, collectionFs)
 // 	th.Ok(t, err)
 // 	expectFileCount(t, stagingFs, 9)
 
@@ -358,12 +363,12 @@ func TestScenario1(t *testing.T) {
 // 	stagingFs.RemoveAll("2")
 
 // 	// 8 - test reimporting of folder1
-// 	err = run(import1Fs, stagingFs, collectionFs)
+// 	err = run(import1Fs, "folder1", stagingFs, collectionFs)
 // 	th.Ok(t, err)
 // 	expectFileCount(t, stagingFs, 0)
 
 // 	// 9 - test reimporting of folder2
-// 	err = run(import2Fs, stagingFs, collectionFs)
+// 	err = run(import2Fs, "folder2",stagingFs, collectionFs)
 // 	th.Ok(t, err)
 // 	expectFileCount(t, stagingFs, 0)
 // }
@@ -379,38 +384,38 @@ func TestScenario2(t *testing.T) {
 
 	fs, err := prepareTestFs(t, "folder1", "folder2")
 	th.Ok(t, err)
-	import1Fs, stagingFs, collectionFs, err := initializeFolders(fs, "folder1", "staging", "collection")
+	import1Fs, stagingFs, collectionFs, err := initializeFolders(fs, "folder1/", "staging", "collection")
 	th.Ok(t, err)
 	// 1
-	err = run(import1Fs, stagingFs, collectionFs)
+	err = run(import1Fs, "folder1", stagingFs, collectionFs)
 	th.Ok(t, err)
 	expectFolder1Contents(t, import1Fs, ".")
-	expectFolder1Contents(t, stagingFs, "1")
+	expectFolder1Contents(t, stagingFs, "1_folder1")
 
 	// 2 (user action)
-	stagingFs.RemoveAll("1")
+	stagingFs.RemoveAll("1_folder1")
 	expectFileCount(t, stagingFs, 0)
 
 	// 3
 	import2Fs, stagingFs, collectionFs, err := initializeFolders(fs, "folder2", "staging", "collection")
-	err = run(import2Fs, stagingFs, collectionFs)
+	err = run(import2Fs, "folder2", stagingFs, collectionFs)
 	th.Ok(t, err)
 	expectFolder2Contents(t, import2Fs, ".")
 	expectFileCount(t, stagingFs, 2)
-	expectFile(t, stagingFs, "1/friends/tom.jpg")
-	expectFile(t, stagingFs, "1/friends/jerry.jpg")
+	expectFile(t, stagingFs, "1_folder2/friends/tom.jpg")
+	expectFile(t, stagingFs, "1_folder2/friends/jerry.jpg")
 
 	// 4 (user action)
-	stagingFs.RemoveAll("1")
+	stagingFs.RemoveAll("1_folder2")
 	expectFileCount(t, stagingFs, 0)
 
 	// 5
-	err = run(import1Fs, stagingFs, collectionFs)
+	err = run(import1Fs, "folder1", stagingFs, collectionFs)
 	th.Ok(t, err)
 	expectFileCount(t, stagingFs, 0)
 
 	// 6
-	err = run(import2Fs, stagingFs, collectionFs)
+	err = run(import2Fs, "folder2", stagingFs, collectionFs)
 	th.Ok(t, err)
 	expectFileCount(t, stagingFs, 0)
 }
@@ -431,28 +436,31 @@ func TestScenario3(t *testing.T) {
 	import1Fs, stagingFs, collectionFs, err := initializeFolders(fs, "folder1", "staging", "collection")
 	th.Ok(t, err)
 	// 1
-	err = run(import1Fs, stagingFs, collectionFs)
+	err = run(import1Fs, "folder1", stagingFs, collectionFs)
 	th.Ok(t, err)
 	expectFolder1Contents(t, import1Fs, ".")
-	expectFolder1Contents(t, stagingFs, "1")
+	expectFolder1Contents(t, stagingFs, "1_folder1")
 
 	// 2 (user action)
-	stagingFs.RemoveAll("1/family")
-	moveFolder(stagingFs, "1/friends", collectionFs, ".")
-	moveFolder(stagingFs, "1", collectionFs, "funny")
+	stagingFs.RemoveAll("1_folder1/family")
+	err = moveFolder(stagingFs, "1_folder1/friends", collectionFs, ".")
+	th.Ok(t, err)
+	err = moveFolder(stagingFs, "1_folder1", collectionFs, "funny")
+	th.Ok(t, err)
 	expectFileCount(t, stagingFs, 0)
 
 	// 3
 	import2Fs, stagingFs, collectionFs, err := initializeFolders(fs, "folder2", "staging", "collection")
-	err = run(import2Fs, stagingFs, collectionFs)
+	err = run(import2Fs, "folder2", stagingFs, collectionFs)
 	th.Ok(t, err)
 	expectFolder2Contents(t, import2Fs, ".")
 	expectFileCount(t, stagingFs, 2)
-	expectFile(t, stagingFs, "1/friends/tom.jpg")
-	expectFile(t, stagingFs, "1/friends/jerry.jpg")
+	expectFile(t, stagingFs, "1_folder2/friends/tom.jpg")
+	expectFile(t, stagingFs, "1_folder2/friends/jerry.jpg")
 
 	// 4 (user action)
-	moveFolder(stagingFs, "1/friends", collectionFs, ".")
+	err = moveFolder(stagingFs, "1_folder2/friends", collectionFs, ".")
+	th.Ok(t, err)
 	expectFileCount(t, stagingFs, 0)
 
 	// 5 (user action)
@@ -461,18 +469,18 @@ func TestScenario3(t *testing.T) {
 	collectionFs.Remove("funny/tom.jpg")
 
 	// 6
-	err = run(import1Fs, stagingFs, collectionFs)
+	err = run(import1Fs, "folder1", stagingFs, collectionFs)
 	th.Ok(t, err)
 	expectFileCount(t, stagingFs, 0)
 
 	// 7
-	err = run(import2Fs, stagingFs, collectionFs)
+	err = run(import2Fs, "folder2", stagingFs, collectionFs)
 	th.Ok(t, err)
 	expectFileCount(t, stagingFs, 0)
 
 	// 8
 	import3Fs, stagingFs, collectionFs, err := initializeFolders(fs, "folder3", "staging", "collection")
-	err = run(import3Fs, stagingFs, collectionFs)
+	err = run(import3Fs, "folder3", stagingFs, collectionFs)
 	th.Ok(t, err)
 	expectFileCount(t, stagingFs, 0)
 }
@@ -500,12 +508,13 @@ func TestScenario4(t *testing.T) {
 	th.Ok(t, err)
 
 	// 1
-	err = run(import3Fs, stagingFs, collectionFs)
+	err = run(import3Fs, "folder3", stagingFs, collectionFs)
 	th.Ok(t, err)
-	expectFolder3Contents(t, stagingFs, "1")
+	expectFolder3Contents(t, stagingFs, "1_folder3")
 
 	// 2 (user action)
-	moveFolder(stagingFs, "1", collectionFs, ".")
+	err = moveFolder(stagingFs, "1_folder3", collectionFs, ".")
+	th.Ok(t, err)
 	expectFileCount(t, stagingFs, 0)
 
 	// 3 (user action)
@@ -515,27 +524,28 @@ func TestScenario4(t *testing.T) {
 	th.Ok(t, err)
 
 	// 4
-	err = run(import1Fs, stagingFs, collectionFs)
+	err = run(import1Fs, "folder1", stagingFs, collectionFs)
 	th.Ok(t, err)
-	expectFileMissing(t, stagingFs, "1/friends/kara.jpg")
+	expectFileMissing(t, stagingFs, "1_folder1/friends/kara.jpg")
 
 	// 5 (user action)
 	err = collectionFs.Remove("friends/tom.jpg")
 	th.Ok(t, err)
 
 	// 6
-	err = run(import2Fs, stagingFs, collectionFs)
+	err = run(import2Fs, "folder2", stagingFs, collectionFs)
 	th.Ok(t, err)
-	expectFileMissing(t, stagingFs, "2/friends/tom.jpg")
+	expectFileMissing(t, stagingFs, "2_folder2/friends/tom.jpg")
 
 	// 7 (user action)
 	err = copyFileWithTimestamps(import2Fs, "friends/tom.jpg", collectionFs)
 	th.Ok(t, err)
 
 	// 8
-	err = run(import2Fs, stagingFs, collectionFs)
+	err = run(import2Fs, "folder2", stagingFs, collectionFs)
 	th.Ok(t, err)
-	expectFileMissing(t, stagingFs, "2/friends/tom.jpg")
+	expectFileMissing(t, stagingFs, "2_folder2/friends/tom.jpg")
+	expectFileMissing(t, stagingFs, "3_folder2/friends/tom.jpg")
 }
 func TestScenario4D(t *testing.T) {
 	// New files are added to the collection between import rounds that were already present in the collection.
@@ -562,12 +572,13 @@ func TestScenario4D(t *testing.T) {
 	th.Ok(t, err)
 
 	// 1
-	err = run(import3Fs, stagingFs, collectionFs)
+	err = run(import3Fs, "folder3", stagingFs, collectionFs)
 	th.Ok(t, err)
-	expectFolder3Contents(t, stagingFs, "1")
+	expectFolder3Contents(t, stagingFs, "1_folder3")
 
 	// 2 (user action)
-	moveFolder(stagingFs, "1", collectionFs, ".")
+	err = moveFolder(stagingFs, "1_folder3", collectionFs, ".")
+	th.Ok(t, err)
 	expectFileCount(t, stagingFs, 0)
 
 	// 3 (user action)
@@ -581,11 +592,11 @@ func TestScenario4D(t *testing.T) {
 	th.Ok(t, err)
 
 	// 4
-	err = run(import1Fs, stagingFs, collectionFs)
+	err = run(import1Fs, "folder1", stagingFs, collectionFs)
 	th.Ok(t, err)
-	expectFileCount(t, afero.NewBasePathFs(stagingFs, "1"), 2)
-	expectFile(t, stagingFs, "1/friends/kara.jpg")
-	expectFile(t, stagingFs, "1/family/dad.jpg")
+	expectFileCount(t, afero.NewBasePathFs(stagingFs, "1_folder1"), 2)
+	expectFile(t, stagingFs, "1_folder1/friends/kara.jpg")
+	expectFile(t, stagingFs, "1_folder1/family/dad.jpg")
 
 	// 5 (user action)
 	err = collectionFs.Remove("buddies/tom.jpg")
@@ -598,19 +609,19 @@ func TestScenario4D(t *testing.T) {
 	th.Ok(t, err)
 
 	// 6
-	err = run(import2Fs, stagingFs, collectionFs)
+	err = run(import2Fs, "folder2", stagingFs, collectionFs)
 	th.Ok(t, err)
-	expectFileCount(t, afero.NewBasePathFs(stagingFs, "2"), 1)
-	expectFile(t, stagingFs, "2/friends/jerry.jpg")
+	expectFileCount(t, afero.NewBasePathFs(stagingFs, "2_folder2"), 1)
+	expectFile(t, stagingFs, "2_folder2/friends/jerry.jpg")
 
 	// 7 (user action)
 	err = collectionFs.Remove("guys/markus.jpg")
 	th.Ok(t, err)
 
 	// 8
-	err = run(import2Fs, stagingFs, collectionFs)
+	err = run(import2Fs, "folder2", stagingFs, collectionFs)
 	th.Ok(t, err)
-	expectFileCount(t, afero.NewBasePathFs(stagingFs, "3"), 0)
+	expectFileCount(t, afero.NewBasePathFs(stagingFs, "3_folder2"), 0)
 }
 
 func TestScenario5(t *testing.T) {
@@ -637,12 +648,12 @@ func TestScenario5(t *testing.T) {
 	th.Ok(t, err)
 
 	// 1
-	err = run(import3Fs, stagingFs, collectionFs)
+	err = run(import3Fs, "folder3", stagingFs, collectionFs)
 	th.Ok(t, err)
-	expectFolder3Contents(t, stagingFs, "1")
+	expectFolder3Contents(t, stagingFs, "1_folder3")
 
 	// 2 (user action)
-	err = copyFileWithTimestampsTo(import1Fs, "friends/kara.jpg", stagingFs, "1/kara.jpg")
+	err = copyFileWithTimestampsTo(import1Fs, "friends/kara.jpg", stagingFs, "1_folder3/kara.jpg")
 	th.Ok(t, err)
 
 	// 3 (user action)
@@ -650,13 +661,14 @@ func TestScenario5(t *testing.T) {
 	th.Ok(t, err)
 
 	// 4
-	err = run(import2Fs, stagingFs, collectionFs)
+	err = run(import2Fs, "folder2", stagingFs, collectionFs)
 	th.Ok(t, err)
-	expectFile(t, stagingFs, "2/friends/jerry.jpg")
-	expectFileMissing(t, stagingFs, "2/friends/tom.jpg")
+	expectFile(t, stagingFs, "2_folder2/friends/jerry.jpg")
+	expectFileMissing(t, stagingFs, "2_folder2/friends/tom.jpg")
 
 	// 5 (user action)
-	moveFolder(stagingFs, "1", collectionFs, ".")
+	err = moveFolder(stagingFs, "1_folder3", collectionFs, ".")
+	th.Ok(t, err)
 	expectFileCount(t, stagingFs, 3) // ./2/family/daddy.jpg, ./2/friends/jerry.jpg, ./t.jpg
 
 	// 6 (user action)
@@ -664,9 +676,9 @@ func TestScenario5(t *testing.T) {
 	th.Ok(t, err)
 
 	// 7
-	err = run(import1Fs, stagingFs, collectionFs)
+	err = run(import1Fs, "folder1", stagingFs, collectionFs)
 	th.Ok(t, err)
-	expectFileMissing(t, stagingFs, "3/family/dad.jpg")
+	expectFileMissing(t, stagingFs, "3_folder1/family/dad.jpg")
 }
 
 func TestScenario5D(t *testing.T) {
@@ -696,12 +708,12 @@ func TestScenario5D(t *testing.T) {
 	th.Ok(t, err)
 
 	// 1
-	err = run(import3Fs, stagingFs, collectionFs)
+	err = run(import3Fs, "folder3", stagingFs, collectionFs)
 	th.Ok(t, err)
-	expectFolder3Contents(t, stagingFs, "1")
+	expectFolder3Contents(t, stagingFs, "1_folder3")
 
 	// 2 (user action)
-	err = copyFileWithTimestampsTo(import2Fs, "friends/markus.jpg", stagingFs, "1/buddies/mar.jpg")
+	err = copyFileWithTimestampsTo(import2Fs, "friends/markus.jpg", stagingFs, "1_folder3/buddies/mar.jpg")
 	th.Ok(t, err)
 
 	// 3 (user action)
@@ -711,34 +723,35 @@ func TestScenario5D(t *testing.T) {
 	th.Ok(t, err)
 
 	// 4
-	err = run(import2Fs, stagingFs, collectionFs)
+	err = run(import2Fs, "folder2", stagingFs, collectionFs)
 	th.Ok(t, err)
-	expectFileMissing(t, stagingFs, "2/friends/markus.jpg")
-	expectFileMissing(t, stagingFs, "2/family/mom.jpg")
+	expectFileMissing(t, stagingFs, "2_folder2/friends/markus.jpg")
+	expectFileMissing(t, stagingFs, "2_folder2/family/mom.jpg")
 
 	// 5 (user action)
 	err = stagingFs.Remove("m.jpg")
 	th.Ok(t, err)
-	err = stagingFs.Remove("1/family/mom.jpg")
+	err = stagingFs.Remove("1_folder3/family/mom.jpg")
 	th.Ok(t, err)
-	err = stagingFs.Remove("1/friends/markus.jpg")
+	err = stagingFs.Remove("1_folder3/friends/markus.jpg")
 	th.Ok(t, err)
-	err = stagingFs.Remove("1/buddies/mar.jpg")
+	err = stagingFs.Remove("1_folder3/buddies/mar.jpg")
 	th.Ok(t, err)
 
 	// 6
-	err = run(import2Fs, stagingFs, collectionFs)
+	err = run(import2Fs, "folder2", stagingFs, collectionFs)
 	th.Ok(t, err)
-	expectFileCount(t, afero.NewBasePathFs(stagingFs, "3"), 0)
+	expectFileCount(t, afero.NewBasePathFs(stagingFs, "3_folder2"), 0)
 
 	// 7 (user action)
 	err = stagingFs.Remove("m2.jpg")
 	th.Ok(t, err)
 
 	// 8
-	err = run(import2Fs, stagingFs, collectionFs)
+	err = run(import2Fs, "folder2", stagingFs, collectionFs)
 	th.Ok(t, err)
-	expectFileCount(t, afero.NewBasePathFs(stagingFs, "3"), 0)
+	expectFileCount(t, afero.NewBasePathFs(stagingFs, "3_folder2"), 0)
+	expectFileCount(t, afero.NewBasePathFs(stagingFs, "4_folder2"), 0)
 }
 
 func TestScenario6(t *testing.T) {
@@ -759,14 +772,14 @@ func TestScenario6(t *testing.T) {
 	th.Ok(t, err)
 
 	// 1
-	err = run(import4Fs, stagingFs, collectionFs)
+	err = run(import4Fs, "folder4", stagingFs, collectionFs)
 	th.Ok(t, err)
-	expectFolder4Contents(t, stagingFs, "1")
+	expectFolder4Contents(t, stagingFs, "1_folder4")
 
 	// 2
-	err = run(import4Fs, stagingFs, collectionFs)
+	err = run(import4Fs, "folder4", stagingFs, collectionFs)
 	th.Ok(t, err)
-	expectFileCount(t, afero.NewBasePathFs(stagingFs, "2"), 0)
+	expectFileCount(t, afero.NewBasePathFs(stagingFs, "2_folder4"), 0)
 
 	// 3 (user action)
 	err = copyFileWithTimestampsTo(import4Fs, "holiday/view1.jpg", collectionFs, "view1.jpg")
@@ -775,16 +788,16 @@ func TestScenario6(t *testing.T) {
 	th.Ok(t, err)
 
 	// 4
-	stagingFs.RemoveAll("1")
-	stagingFs.RemoveAll("2")
+	stagingFs.RemoveAll("1_folder4")
+	stagingFs.RemoveAll("2_folder4")
 	stagingFs.Remove("coback.catalog")
 
 	// 5
-	err = run(import4Fs, stagingFs, collectionFs)
+	err = run(import4Fs, "folder4", stagingFs, collectionFs)
 	th.Ok(t, err)
-	expectFileCount(t, afero.NewBasePathFs(stagingFs, "1"), 2)
-	expectFile(t, stagingFs, "1/holiday/public/view2.jpg")
-	expectFile(t, stagingFs, "1/holiday/view2.jpg")
+	expectFileCount(t, afero.NewBasePathFs(stagingFs, "1_folder4"), 2)
+	expectFile(t, stagingFs, "1_folder4/holiday/public/view2.jpg")
+	expectFile(t, stagingFs, "1_folder4/holiday/view2.jpg")
 }
 
 func TestScenario7(t *testing.T) {
@@ -810,31 +823,32 @@ func TestScenario7(t *testing.T) {
 	expectFolder3Contents(t, collectionFs, ".")
 
 	// 2
-	err = run(import3Fs, stagingFs, collectionFs)
+	err = run(import3Fs, "folder3", stagingFs, collectionFs)
 	th.Ok(t, err)
-	expectFileCount(t, afero.NewBasePathFs(stagingFs, "1"), 0)
+	expectFileCount(t, afero.NewBasePathFs(stagingFs, "1_folder3"), 0)
 
 	// 3
-	err = run(import1Fs, stagingFs, collectionFs)
+	err = run(import1Fs, "folder1", stagingFs, collectionFs)
 	th.Ok(t, err)
-	expectFileCount(t, afero.NewBasePathFs(stagingFs, "2"), 2)
-	expectFile(t, stagingFs, "2/family/dad.jpg")
-	expectFile(t, stagingFs, "2/friends/kara.jpg")
+	expectFileCount(t, afero.NewBasePathFs(stagingFs, "2_folder1"), 2)
+	expectFile(t, stagingFs, "2_folder1/family/dad.jpg")
+	expectFile(t, stagingFs, "2_folder1/friends/kara.jpg")
 
 	// 4
 	fs, err = prepareTestFs(t, "folder4")
 	th.Ok(t, err)
 
+	// 5
 	import4Fs, stagingFs, collectionFs, err := initializeFolders(fs, "folder4", "staging", "collection")
 	th.Ok(t, err)
 	err = copyFolder(fs, "folder4", collectionFs, ".")
 	th.Ok(t, err)
 	expectFolder4Contents(t, collectionFs, ".")
 
-	// 5
-	err = run(import4Fs, stagingFs, collectionFs)
+	// 6
+	err = run(import4Fs, "folder4", stagingFs, collectionFs)
 	th.Ok(t, err)
-	expectFileCount(t, afero.NewBasePathFs(stagingFs, "1"), 0)
+	expectFileCount(t, afero.NewBasePathFs(stagingFs, "1_folder4"), 0)
 }
 
 func TestScenario8(t *testing.T) {
@@ -853,7 +867,7 @@ func TestScenario8(t *testing.T) {
 	th.Ok(t, err)
 
 	// 2
-	err = run(importFs, stagingFs, collectionFs)
+	err = run(importFs, "folder1", stagingFs, collectionFs)
 	th.NokPrefix(t, err, "Staging folder is not empty and doesn't have a catalog")
 
 	// 3
@@ -865,7 +879,7 @@ func TestScenario8(t *testing.T) {
 	th.Ok(t, err)
 
 	// 4
-	err = run(importFs, stagingFs, collectionFs)
+	err = run(importFs, "folder1", stagingFs, collectionFs)
 	th.Nok(t, err, "coback.catalog is a folder")
 }
 
@@ -892,28 +906,28 @@ func TestScenario9(t *testing.T) {
 	import3Fs, stagingFs, collectionFs, err := initializeFolders(fs, "folder3", "staging", "collection")
 	th.Ok(t, err)
 
-	err = run(import3Fs, stagingFs, collectionFs)
+	err = run(import3Fs, "folder3", stagingFs, collectionFs)
 	th.Ok(t, err)
-	expectFolder3Contents(t, stagingFs, "1")
+	expectFolder3Contents(t, stagingFs, "1_folder3")
 
 	// 2 (user action)
 	err = copyFileWithTimestampsTo(import1Fs, "family/dad.jpg", import3Fs, "dad.jpg")
 	th.Ok(t, err)
 
 	// 3
-	err = run(import3Fs, stagingFs, collectionFs)
+	err = run(import3Fs, "folder3", stagingFs, collectionFs)
 	th.Ok(t, err)
-	expectFileCount(t, afero.NewBasePathFs(stagingFs, "2"), 1)
-	expectFile(t, stagingFs, "2/dad.jpg")
+	expectFileCount(t, afero.NewBasePathFs(stagingFs, "2_folder3"), 1)
+	expectFile(t, stagingFs, "2_folder3/dad.jpg")
 
 	// 4 (user action)
 	err = import3Fs.Remove("family/mom.jpg")
 	th.Ok(t, err)
 
 	// 5
-	err = run(import3Fs, stagingFs, collectionFs)
+	err = run(import3Fs, "folder3", stagingFs, collectionFs)
 	th.Ok(t, err)
-	expectFileCount(t, afero.NewBasePathFs(stagingFs, "3"), 0)
+	expectFileCount(t, afero.NewBasePathFs(stagingFs, "3_folder3"), 0)
 
 	// 6 (user action)
 	err = import3Fs.Remove("family/sis.jpg")
@@ -922,19 +936,19 @@ func TestScenario9(t *testing.T) {
 	th.Ok(t, err)
 
 	// 7
-	err = run(import3Fs, stagingFs, collectionFs)
+	err = run(import3Fs, "folder3", stagingFs, collectionFs)
 	th.Ok(t, err)
-	expectFileCount(t, afero.NewBasePathFs(stagingFs, "4"), 1)
-	expectFile(t, stagingFs, "4/buddies/kara.jpg")
+	expectFileCount(t, afero.NewBasePathFs(stagingFs, "4_folder3"), 1)
+	expectFile(t, stagingFs, "4_folder3/buddies/kara.jpg")
 
 	// 8 (user action)
 	err = copyFileWithTimestampsTo(import1Fs, "family/sis.jpg", import3Fs, "family/sis.jpg")
 	th.Ok(t, err)
 
 	// 9
-	err = run(import3Fs, stagingFs, collectionFs)
+	err = run(import3Fs, "folder3", stagingFs, collectionFs)
 	th.Ok(t, err)
-	expectFileCount(t, afero.NewBasePathFs(stagingFs, "5"), 0)
+	expectFileCount(t, afero.NewBasePathFs(stagingFs, "5_folder3"), 0)
 }
 
 // File edited, to have new unique content while keeping the same name.

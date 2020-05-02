@@ -6,6 +6,7 @@ import (
 	"os"
 	"path"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -98,15 +99,22 @@ func CopyFileTo(sourceFs afero.Fs, sourcePath string, timestamp string, destinat
 	return errors.Wrapf(err, "Failed to set file attributes '%v'", destinationPath)
 }
 
-// NextUnusedFolder returns a smallest positive integer as a string that can be used as the name of a new folder
-// in the root of the FS
+// NextUnusedFolder returns a smallest positive integer as a string that can be used as the prefix of the
+// name of a new folder in the root of the FS
 func NextUnusedFolder(fs afero.Fs) string {
+	prefixes := make(map[string]bool)
+	listing, _ := afero.ReadDir(fs, ".")
+	for _, fi := range listing {
+		count := strings.SplitN(fi.Name(), "_", 2)[0]
+		prefixes[count] = true
+	}
+
 	nextFolder := 0
 	for {
 		nextFolder++
 		folderName := strconv.Itoa(nextFolder)
 
-		if _, err := fs.Stat(folderName); os.IsNotExist(err) {
+		if _, found := prefixes[folderName]; !found {
 			return folderName
 		}
 	}

@@ -14,9 +14,9 @@ import (
 
 // stageFiles creates a new numbered folder in the staging folder and copies all files
 // in the items channel from the import FS to this new folder in the staging FS.
-func stageFiles(importFs afero.Fs, items <-chan catalog.Item, stagingFs afero.Fs) error {
+func stageFiles(importFs afero.Fs, importName string, items <-chan catalog.Item, stagingFs afero.Fs) error {
 	fmt.Println("***************** Copying files to staging folder *****************")
-	targetFolder := fsh.NextUnusedFolder(stagingFs)
+	targetFolder := fsh.NextUnusedFolder(stagingFs) + "_" + importName
 	fsh.EnsureDirectoryExist(stagingFs, targetFolder)
 	targetFs := afero.NewBasePathFs(stagingFs, targetFolder)
 	for item := range items {
@@ -77,7 +77,7 @@ func checkUsableStagingFolder(stagingFs afero.Fs) error {
 	return nil
 }
 
-func run(importFs afero.Fs, stagingFs afero.Fs, collectionFs afero.Fs) error {
+func run(importFs afero.Fs, importName string, stagingFs afero.Fs, collectionFs afero.Fs) error {
 	err := checkUsableStagingFolder(stagingFs)
 	if err != nil {
 		return err
@@ -108,7 +108,7 @@ func run(importFs afero.Fs, stagingFs afero.Fs, collectionFs afero.Fs) error {
 	notInCollection := importCatalog.FilterNew(collectionCatalog)
 	notInStaging := notInCollection.FilterNew(stagingCatalog)
 
-	if err = stageFiles(importFs, notInStaging.AllItems(), stagingFs); err != nil {
+	if err = stageFiles(importFs, importName, notInStaging.AllItems(), stagingFs); err != nil {
 		return errors.Wrapf(err, "Failed to copy files")
 	}
 
@@ -132,8 +132,10 @@ func main() {
 		fmt.Printf("Cannot initialize folder: %v\n", err)
 		os.Exit(1)
 	}
+	_, importName := filepath.Split(os.Args[1])
 
-	err = run(importFs, stagingFs, collectionFs)
+
+	err = run(importFs, importName, stagingFs, collectionFs)
 	if err != nil {
 		fmt.Printf("Failed to copy files: %v\n", err)
 		os.Exit(1)
