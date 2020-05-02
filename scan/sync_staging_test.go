@@ -104,7 +104,7 @@ func TestSyncStagingWhenCatalogIsUpToDate(t *testing.T) {
 }
 
 func TestSyncStagingWhenFileIsMovedToCollection(t *testing.T) {
-	collectionFs, err := InitializeFolder(afero.NewMemMapFs(), ".", "Collection")
+	collectionFs, err := InitializeFolder(afero.NewMemMapFs(), ".")
 	th.Ok(t, err)
 
 	fs := createMemFsTestData()
