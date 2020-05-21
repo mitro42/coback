@@ -150,71 +150,63 @@ func TestSumSizes(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(1)
-	countBar := newMockProgressBar()
-	sizeBar := newMockProgressBar()
-	sumSizes(input, countBar, sizeBar, nil, &wg)
+	pb := newMockDoubleProgressBar()
+	sumSizes(input, pb, nil, &wg)
 	wg.Wait()
 	close(input)
 
-	th.Equals(t, int64(inputLength), countBar.total)
-	th.Equals(t, sum, sizeBar.total)
+	th.Equals(t, int64(inputLength), pb.countTotal)
+	th.Equals(t, sum, pb.sizeTotal)
 }
 
 func TestCheckCatalogFileMissing(t *testing.T) {
-	countBar := newMockProgressBar()
-	sizeBar := newMockProgressBar()
+	pb := newMockDoubleProgressBar()
 	fs := fsh.CreateSafeFs("../test_data")
 	c := catalog.NewCatalog()
 	okFiles := make(chan string)
 	changedFiles := make(chan string)
-	th.Nok(t, checkCatalogFile(fs, "no_such_file", c, countBar, sizeBar, okFiles, changedFiles), "Cannot read file 'no_such_file'")
-	th.Equals(t, 0, countBar.incrByCount)
-	th.Equals(t, 0, sizeBar.incrByCount)
+	th.Nok(t, checkCatalogFile(fs, "no_such_file", c, pb, okFiles, changedFiles), "Cannot read file 'no_such_file'")
+	th.Equals(t, 0, pb.incrByCount)
 	th.Equals(t, 0, len(okFiles))
 	th.Equals(t, 0, len(changedFiles))
 }
 
 func TestCheckCatalogFileNotInCatalog(t *testing.T) {
 	basePath, _ := os.Getwd()
-	countBar := newMockProgressBar()
-	sizeBar := newMockProgressBar()
+	pb := newMockDoubleProgressBar()
 	path := "test_data"
 	fs := fsh.CreateSafeFs(filepath.Join(filepath.Dir(basePath), path))
 	filter := ExtensionFilter("txt")
 	c := ScanFolder(fs, "", filter)
 	okFiles := make(chan string, 1)
 	changedFiles := make(chan string, 1)
-	th.Nok(t, checkCatalogFile(fs, "test1.txt", c, countBar, sizeBar, okFiles, changedFiles), "Cannot find file in catalog 'test1.txt'")
-	th.Equals(t, 1, countBar.incrByCount)
-	th.Equals(t, int64(1), countBar.value)
-	th.Equals(t, 1, sizeBar.incrByCount)
-	th.Equals(t, int64(1160), sizeBar.value)
+	th.Nok(t, checkCatalogFile(fs, "test1.txt", c, pb, okFiles, changedFiles), "Cannot find file in catalog 'test1.txt'")
+	th.Equals(t, 1, pb.incrByCount)
+	th.Equals(t, int64(1), pb.count)
+	th.Equals(t, int64(1160), pb.size)
 	th.Equals(t, 0, len(okFiles))
 	th.Equals(t, 0, len(changedFiles))
 }
 
 func TestCheckCatalogFileSuccess(t *testing.T) {
 	basePath, _ := os.Getwd()
-	countBar := newMockProgressBar()
-	sizeBar := newMockProgressBar()
+	pb := newMockDoubleProgressBar()
 	path := "test_data"
 	fs := fsh.CreateSafeFs(filepath.Join(filepath.Dir(basePath), path))
 	c := ScanFolder(fs, "", noFilter{})
 	okFiles := make(chan string, 1)
 	changedFiles := make(chan string, 1)
-	th.Ok(t, checkCatalogFile(fs, "test1.txt", c, countBar, sizeBar, okFiles, changedFiles))
-	th.Equals(t, 1, countBar.incrByCount)
-	th.Equals(t, int64(1), countBar.value)
-	th.Equals(t, 1, sizeBar.incrByCount)
-	th.Equals(t, int64(1160), sizeBar.value)
+	th.Ok(t, checkCatalogFile(fs, "test1.txt", c, pb, okFiles, changedFiles))
+	th.Equals(t, 1, pb.incrByCount)
+	th.Equals(t, int64(1), pb.count)
+	th.Equals(t, int64(1160), pb.size)
 	th.Equals(t, "test1.txt", <-okFiles)
 	th.Equals(t, 0, len(changedFiles))
 }
 
 func TestCheckCatalogFileMismatch(t *testing.T) {
 	basePath, _ := os.Getwd()
-	countBar := newMockProgressBar()
-	sizeBar := newMockProgressBar()
+	pb := newMockDoubleProgressBar()
 	path := filepath.Join(filepath.Dir(basePath), "test_data")
 	fs := fsh.CreateSafeFs(path)
 	c := ScanFolder(fs, "", noFilter{})
@@ -222,70 +214,62 @@ func TestCheckCatalogFileMismatch(t *testing.T) {
 	changeFileContent(fs, modifiedFile)
 	okFiles := make(chan string, 1)
 	changedFiles := make(chan string, 1)
-	th.Ok(t, checkCatalogFile(fs, modifiedFile, c, countBar, sizeBar, okFiles, changedFiles))
-	th.Equals(t, 1, countBar.incrByCount)
-	th.Equals(t, int64(1), countBar.value)
-	th.Equals(t, 1, sizeBar.incrByCount)
-	th.Equals(t, int64(1175), sizeBar.value)
+	th.Ok(t, checkCatalogFile(fs, modifiedFile, c, pb, okFiles, changedFiles))
+	th.Equals(t, 1, pb.incrByCount)
+	th.Equals(t, int64(1), pb.count)
+	th.Equals(t, int64(1175), pb.size)
 	th.Equals(t, 0, len(okFiles))
 	th.Equals(t, "test1.txt", <-changedFiles)
 }
 
 func TestQuickCheckCatalogFileMissing(t *testing.T) {
-	countBar := newMockProgressBar()
-	sizeBar := newMockProgressBar()
+	pb := newMockDoubleProgressBar()
 	fs := fsh.CreateSafeFs("../test_data")
 	c := catalog.NewCatalog()
 	okFiles := make(chan string)
 	changedFiles := make(chan string)
-	th.NokPrefix(t, quickCheckCatalogFile(fs, "no_such_file", c, countBar, sizeBar, okFiles, changedFiles), "Cannot get file info")
-	th.Equals(t, 0, countBar.incrByCount)
-	th.Equals(t, 0, sizeBar.incrByCount)
+	th.NokPrefix(t, quickCheckCatalogFile(fs, "no_such_file", c, pb, okFiles, changedFiles), "Cannot get file info")
+	th.Equals(t, 0, pb.incrByCount)
 	th.Equals(t, 0, len(okFiles))
 	th.Equals(t, 0, len(changedFiles))
 }
 
 func TestQuickCheckCatalogFileNotInCatalog(t *testing.T) {
 	basePath, _ := os.Getwd()
-	countBar := newMockProgressBar()
-	sizeBar := newMockProgressBar()
+	pb := newMockDoubleProgressBar()
 	path := "test_data"
 	fs := fsh.CreateSafeFs(filepath.Join(filepath.Dir(basePath), path))
 	filter := ExtensionFilter("txt")
 	c := ScanFolder(fs, "", filter)
 	okFiles := make(chan string, 1)
 	changedFiles := make(chan string, 1)
-	th.Nok(t, quickCheckCatalogFile(fs, "test1.txt", c, countBar, sizeBar, okFiles, changedFiles), "Cannot find file in catalog 'test1.txt'")
-	th.Equals(t, 1, countBar.incrByCount)
-	th.Equals(t, int64(1), countBar.value)
-	th.Equals(t, 1, sizeBar.incrByCount)
-	th.Equals(t, int64(1160), sizeBar.value)
+	th.Nok(t, quickCheckCatalogFile(fs, "test1.txt", c, pb, okFiles, changedFiles), "Cannot find file in catalog 'test1.txt'")
+	th.Equals(t, 1, pb.incrByCount)
+	th.Equals(t, int64(1), pb.count)
+	th.Equals(t, int64(1160), pb.size)
 	th.Equals(t, 0, len(okFiles))
 	th.Equals(t, 0, len(changedFiles))
 }
 
 func TestQuickCheckCatalogFileSuccess(t *testing.T) {
 	basePath, _ := os.Getwd()
-	countBar := newMockProgressBar()
-	sizeBar := newMockProgressBar()
+	pb := newMockDoubleProgressBar()
 	path := "test_data"
 	fs := fsh.CreateSafeFs(filepath.Join(filepath.Dir(basePath), path))
 	c := ScanFolder(fs, "", noFilter{})
 	okFiles := make(chan string, 1)
 	changedFiles := make(chan string, 1)
-	th.Ok(t, quickCheckCatalogFile(fs, "test1.txt", c, countBar, sizeBar, okFiles, changedFiles))
-	th.Equals(t, 1, countBar.incrByCount)
-	th.Equals(t, int64(1), countBar.value)
-	th.Equals(t, 1, sizeBar.incrByCount)
-	th.Equals(t, int64(1160), sizeBar.value)
+	th.Ok(t, quickCheckCatalogFile(fs, "test1.txt", c, pb, okFiles, changedFiles))
+	th.Equals(t, 1, pb.incrByCount)
+	th.Equals(t, int64(1), pb.count)
+	th.Equals(t, int64(1160), pb.size)
 	th.Equals(t, "test1.txt", <-okFiles)
 	th.Equals(t, 0, len(changedFiles))
 }
 
 func TestQuickCheckCatalogFileMismatch(t *testing.T) {
 	basePath, _ := os.Getwd()
-	countBar := newMockProgressBar()
-	sizeBar := newMockProgressBar()
+	pb := newMockDoubleProgressBar()
 	path := filepath.Join(filepath.Dir(basePath), "test_data")
 	fs := fsh.CreateSafeFs(path)
 	c := ScanFolder(fs, "", noFilter{})
@@ -293,19 +277,17 @@ func TestQuickCheckCatalogFileMismatch(t *testing.T) {
 	changeFileContent(fs, modifiedFile)
 	okFiles := make(chan string, 1)
 	changedFiles := make(chan string, 1)
-	th.Ok(t, quickCheckCatalogFile(fs, modifiedFile, c, countBar, sizeBar, okFiles, changedFiles))
-	th.Equals(t, 1, countBar.incrByCount)
-	th.Equals(t, int64(1), countBar.value)
-	th.Equals(t, 1, sizeBar.incrByCount)
-	th.Equals(t, int64(1175), sizeBar.value)
+	th.Ok(t, quickCheckCatalogFile(fs, modifiedFile, c, pb, okFiles, changedFiles))
+	th.Equals(t, 1, pb.incrByCount)
+	th.Equals(t, int64(1), pb.count)
+	th.Equals(t, int64(1175), pb.size)
 	th.Equals(t, 0, len(okFiles))
 	th.Equals(t, "test1.txt", <-changedFiles)
 }
 
 func TestQuickCheckCatalogFileContentMismatch(t *testing.T) {
 	basePath, _ := os.Getwd()
-	countBar := newMockProgressBar()
-	sizeBar := newMockProgressBar()
+	pb := newMockDoubleProgressBar()
 	path := filepath.Join(filepath.Dir(basePath), "test_data")
 	fs := fsh.CreateSafeFs(path)
 	timestamp := time.Now().Format(time.RFC3339Nano)
@@ -317,19 +299,17 @@ func TestQuickCheckCatalogFileContentMismatch(t *testing.T) {
 	createDummyFileWithTimestamp(fs, dummy0, timestamp)
 	okFiles := make(chan string, 1)
 	changedFiles := make(chan string, 1)
-	th.Ok(t, quickCheckCatalogFile(fs, dummy0.Path, c, countBar, sizeBar, okFiles, changedFiles))
-	th.Equals(t, 1, countBar.incrByCount)
-	th.Equals(t, int64(1), countBar.value)
-	th.Equals(t, 1, sizeBar.incrByCount)
-	th.Equals(t, int64(32), sizeBar.value)
+	th.Ok(t, quickCheckCatalogFile(fs, dummy0.Path, c, pb, okFiles, changedFiles))
+	th.Equals(t, 1, pb.incrByCount)
+	th.Equals(t, int64(1), pb.count)
+	th.Equals(t, int64(32), pb.size)
 	th.Equals(t, "subfolder/dummy1", <-okFiles)
 	th.Equals(t, 0, len(changedFiles))
 }
 
 func TestQuickCheckCatalogFileSizeMismatch(t *testing.T) {
 	basePath, _ := os.Getwd()
-	countBar := newMockProgressBar()
-	sizeBar := newMockProgressBar()
+	pb := newMockDoubleProgressBar()
 	path := filepath.Join(filepath.Dir(basePath), "test_data")
 	fs := fsh.CreateSafeFs(path)
 	timestamp := time.Now().Format(time.RFC3339Nano)
@@ -341,19 +321,17 @@ func TestQuickCheckCatalogFileSizeMismatch(t *testing.T) {
 	createDummyFileWithTimestamp(fs, dummy0, timestamp)
 	okFiles := make(chan string, 1)
 	changedFiles := make(chan string, 1)
-	th.Ok(t, quickCheckCatalogFile(fs, dummy0.Path, c, countBar, sizeBar, okFiles, changedFiles))
-	th.Equals(t, 1, countBar.incrByCount)
-	th.Equals(t, int64(1), countBar.value)
-	th.Equals(t, 1, sizeBar.incrByCount)
-	th.Equals(t, int64(47), sizeBar.value)
+	th.Ok(t, quickCheckCatalogFile(fs, dummy0.Path, c, pb, okFiles, changedFiles))
+	th.Equals(t, 1, pb.incrByCount)
+	th.Equals(t, int64(1), pb.count)
+	th.Equals(t, int64(47), pb.size)
 	th.Equals(t, 0, len(okFiles))
 	th.Equals(t, "subfolder/dummy1", <-changedFiles)
 }
 
 func TestQuickCheckCatalogFileModificationTimeMismatch(t *testing.T) {
 	basePath, _ := os.Getwd()
-	countBar := newMockProgressBar()
-	sizeBar := newMockProgressBar()
+	pb := newMockDoubleProgressBar()
 	path := filepath.Join(filepath.Dir(basePath), "test_data")
 	fs := fsh.CreateSafeFs(path)
 	dummy0 := dummies[0]
@@ -363,11 +341,10 @@ func TestQuickCheckCatalogFileModificationTimeMismatch(t *testing.T) {
 	createDummyFileWithTimestamp(fs, dummy0, time.Now().Format(time.RFC3339Nano))
 	okFiles := make(chan string, 1)
 	changedFiles := make(chan string, 1)
-	th.Ok(t, quickCheckCatalogFile(fs, dummy0.Path, c, countBar, sizeBar, okFiles, changedFiles))
-	th.Equals(t, 1, countBar.incrByCount)
-	th.Equals(t, int64(1), countBar.value)
-	th.Equals(t, 1, sizeBar.incrByCount)
-	th.Equals(t, int64(32), sizeBar.value)
+	th.Ok(t, quickCheckCatalogFile(fs, dummy0.Path, c, pb, okFiles, changedFiles))
+	th.Equals(t, 1, pb.incrByCount)
+	th.Equals(t, int64(1), pb.count)
+	th.Equals(t, int64(32), pb.size)
 	th.Equals(t, 0, len(okFiles))
 	th.Equals(t, "subfolder/dummy1", <-changedFiles)
 }
@@ -385,8 +362,7 @@ func collectFilesSync(c <-chan string) map[string]bool {
 
 func TestCheckExistingItemsSuccess(t *testing.T) {
 	basePath, _ := os.Getwd()
-	countBar := newMockProgressBar()
-	sizeBar := newMockProgressBar()
+	pb := newMockDoubleProgressBar()
 	path := filepath.Join(filepath.Dir(basePath), "test_data")
 	fs := fsh.CreateSafeFs(path)
 	c := ScanFolder(fs, "", noFilter{})
@@ -396,24 +372,22 @@ func TestCheckExistingItemsSuccess(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 
-	checkExistingItems(fs, true, inputFiles, c, countBar, sizeBar, okFiles, changedFiles, &wg)
+	checkExistingItems(fs, true, inputFiles, c, pb, okFiles, changedFiles, &wg)
 	inputFiles <- "test1.txt"
 	inputFiles <- "subfolder/file1.bin"
 	inputFiles <- "test2.txt"
 	inputFiles <- ""
 	wg.Wait()
-	th.Equals(t, 3, countBar.incrByCount)
-	th.Equals(t, int64(3), countBar.value)
-	th.Equals(t, 3, sizeBar.incrByCount)
-	th.Equals(t, int64(3488), sizeBar.value)
+	th.Equals(t, 3, pb.incrByCount)
+	th.Equals(t, int64(3), pb.count)
+	th.Equals(t, int64(3488), pb.size)
 	expOk := map[string]bool{"test1.txt": true, "subfolder/file1.bin": true, "test2.txt": true}
 	th.Equals(t, expOk, collectFilesSync(okFiles))
 }
 
 func TestCheckExistingItemsMismatch(t *testing.T) {
 	basePath, _ := os.Getwd()
-	countBar := newMockProgressBar()
-	sizeBar := newMockProgressBar()
+	pb := newMockDoubleProgressBar()
 	path := filepath.Join(filepath.Dir(basePath), "test_data")
 	fs := fsh.CreateSafeFs(path)
 	c := ScanFolder(fs, "", noFilter{})
@@ -423,7 +397,7 @@ func TestCheckExistingItemsMismatch(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 
-	go checkExistingItems(fs, true, inputFiles, c, countBar, sizeBar, okFiles, changedFiles, &wg)
+	go checkExistingItems(fs, true, inputFiles, c, pb, okFiles, changedFiles, &wg)
 	changeFileContent(fs, "test2.txt")
 	inputFiles <- "subfolder/file1.bin"
 	inputFiles <- "test2.txt"
@@ -499,14 +473,13 @@ func TestReadCatalogItems(t *testing.T) {
 	basePath, _ := os.Getwd()
 	path := "test_data"
 	fs := fsh.CreateSafeFs(filepath.Join(filepath.Dir(basePath), path))
-	countBar := newMockProgressBar()
-	sizeBar := newMockProgressBar()
+	pb := newMockDoubleProgressBar()
 
 	inputFiles := []string{"subfolder/file1.bin", "test1.txt", "subfolder/file2.bin", "test2.txt"}
 	input := make(chan string, 10)
 	var wg sync.WaitGroup
 	wg.Add(1)
-	catalogItems := readCatalogItems(fs, input, countBar, sizeBar, &wg)
+	catalogItems := readCatalogItems(fs, input, pb, &wg)
 	for _, item := range inputFiles {
 		input <- item
 	}
@@ -532,30 +505,27 @@ func TestReadCatalogItems(t *testing.T) {
 		}
 		th.Assert(t, found, fmt.Sprintf("path '%v' returned buy readCatalogItems was not in the input", outputPath))
 	}
-	th.Equals(t, 4, countBar.incrByCount)
-	th.Equals(t, int64(4), countBar.value)
-	th.Equals(t, 4, sizeBar.incrByCount)
-	th.Equals(t, int64(4988), sizeBar.value)
+	th.Equals(t, 4, pb.incrByCount)
+	th.Equals(t, int64(4), pb.count)
+	th.Equals(t, int64(4988), pb.size)
 }
 
 func TestReadCatalogItemsEmpty(t *testing.T) {
 	basePath, _ := os.Getwd()
 	path := "test_data"
 	fs := fsh.CreateSafeFs(filepath.Join(basePath, path))
-	countBar := newMockProgressBar()
-	sizeBar := newMockProgressBar()
+	pb := newMockDoubleProgressBar()
 
 	input := make(chan string, 10)
 	var wg sync.WaitGroup
 	wg.Add(1)
-	catalogItems := readCatalogItems(fs, input, countBar, sizeBar, &wg)
+	catalogItems := readCatalogItems(fs, input, pb, &wg)
 	input <- ""
 
 	wg.Wait()
 	th.Equals(t, catalog.Item{}, <-catalogItems)
 	th.Equals(t, 0, len(catalogItems))
-	th.Equals(t, 0, countBar.incrByCount)
-	th.Equals(t, 0, sizeBar.incrByCount)
+	th.Equals(t, 0, pb.incrByCount)
 }
 
 func TestSaveCatalogEmpty(t *testing.T) {

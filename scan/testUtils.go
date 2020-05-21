@@ -11,38 +11,48 @@ import (
 	"github.com/spf13/afero"
 )
 
-type mockProgressBar struct {
-	value         int64
-	total         int64
-	done          bool
+type mockDoubleProgressBar struct {
+	count         int64
+	size          int64
+	countTotal    int64
+	sizeTotal     int64
 	incrByCount   int
 	setTotalCount int
 	mux           sync.Mutex
 }
 
-func newMockProgressBar() *mockProgressBar {
-	return &mockProgressBar{}
+func newMockDoubleProgressBar() *mockDoubleProgressBar {
+	return &mockDoubleProgressBar{}
 }
 
-func (m *mockProgressBar) SetTotal(total int64, final bool) {
+func (m *mockDoubleProgressBar) SetTotal(count int64, size int64) {
 	m.mux.Lock()
 	defer m.mux.Unlock()
-	m.total = total
-	m.done = final
+	m.countTotal = count
+	m.sizeTotal = size
 	m.setTotalCount++
 }
 
-func (m *mockProgressBar) IncrBy(n int) {
+func (m *mockDoubleProgressBar) IncrBy(n int) {
 	m.mux.Lock()
 	defer m.mux.Unlock()
-	m.value += int64(n)
+	m.size += int64(n)
+	m.count++
 	m.incrByCount++
 }
 
-func (m *mockProgressBar) Current() int64 {
+func (m *mockDoubleProgressBar) CurrentSize() int64 {
 	m.mux.Lock()
 	defer m.mux.Unlock()
-	return m.value
+	return m.size
+}
+func (m *mockDoubleProgressBar) CurrentCount() int64 {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	return m.count
+}
+
+func (m *mockDoubleProgressBar) Wait() {
 }
 
 func changeFileContent(fs afero.Fs, path string) error {

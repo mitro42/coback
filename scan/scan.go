@@ -3,7 +3,6 @@ package scan
 import (
 	"fmt"
 	"log"
-	"math"
 	"os"
 	"path/filepath"
 	"sync"
@@ -12,17 +11,7 @@ import (
 	"github.com/mitro42/coback/catalog"
 	"github.com/pkg/errors"
 	"github.com/spf13/afero"
-	"github.com/vbauerster/mpb"
-	"github.com/vbauerster/mpb/decor"
 )
-
-// ProgressBar is the minimal progress bar interface used in CoBack.
-// It enables easy mocking of the progress bars in unit tests
-type ProgressBar interface {
-	SetTotal(total int64, final bool)
-	IncrBy(n int)
-	Current() int64
-}
 
 // FileSystemDiff contains the details of catalog checked against a folder in the file system.
 // Ok (set of paths): these files have the same size, modification time and content in the catalog and the FS
@@ -85,13 +74,12 @@ func filterFiles(files <-chan string, filter FileFilter, wg *sync.WaitGroup) cha
 	return filtered
 }
 
-func catalogFile(fs afero.Fs, path string, out chan catalog.Item, countBar ProgressBar, sizeBar ProgressBar) {
+func catalogFile(fs afero.Fs, path string, out chan catalog.Item, pb DoubleProgressBar) {
 	item, err := catalog.NewItem(fs, path)
 	if err != nil {
 		log.Printf("Cannot read file '%v'", path)
 	} else {
-		sizeBar.IncrBy(int(item.Size))
-		countBar.IncrBy(1)
+		pb.IncrBy(int(item.Size))
 		out <- *item
 	}
 }
@@ -99,14 +87,13 @@ func catalogFile(fs afero.Fs, path string, out chan catalog.Item, countBar Progr
 // checkCatalogFile checks a given file (metadata and content) against a catalog
 // The file's path is sent to the ok if everything matches the catalog and to the changed channel otherwise.
 // Returns error if cannot read the file or it's not in the catalog.
-func checkCatalogFile(fs afero.Fs, path string, c catalog.Catalog, countBar ProgressBar, sizeBar ProgressBar, ok chan<- string, changed chan<- string) error {
+func checkCatalogFile(fs afero.Fs, path string, c catalog.Catalog, pb DoubleProgressBar, ok chan<- string, changed chan<- string) error {
 	item, err := catalog.NewItem(fs, path)
 	if err != nil {
 		return errors.Errorf("Cannot read file '%v'", path)
 	}
 
-	sizeBar.IncrBy(int(item.Size))
-	countBar.IncrBy(1)
+	pb.IncrBy(int(item.Size))
 	itemInCatalog, err := c.Item(path)
 
 	if err != nil {
@@ -127,7 +114,7 @@ func checkCatalogFile(fs afero.Fs, path string, c catalog.Catalog, countBar Prog
 // If both are unchanged, it is assumed that the contents are the same too and the path is sent to the ok channel.
 // If either the size or the modification time is different, the path is sent to the changed channel.
 // Returns error if cannot read the file or it's not in the catalog.
-func quickCheckCatalogFile(fs afero.Fs, path string, c catalog.Catalog, countBar ProgressBar, sizeBar ProgressBar, ok chan<- string, changed chan<- string) error {
+func quickCheckCatalogFile(fs afero.Fs, path string, c catalog.Catalog, pb DoubleProgressBar, ok chan<- string, changed chan<- string) error {
 	fi, err := fs.Stat(path)
 	if err != nil {
 		return errors.Wrap(err, "Cannot get file info")
@@ -136,8 +123,7 @@ func quickCheckCatalogFile(fs afero.Fs, path string, c catalog.Catalog, countBar
 	size := fi.Size()
 	modificationTime := fi.ModTime().Format(time.RFC3339Nano)
 
-	sizeBar.IncrBy(int(size))
-	countBar.IncrBy(1)
+	pb.IncrBy(int(size))
 
 	itemInCatalog, err := c.Item(path)
 	if err != nil {
@@ -159,8 +145,7 @@ func quickCheckCatalogFile(fs afero.Fs, path string, c catalog.Catalog, countBar
 // The paths channel must be buffered.
 func readCatalogItems(fs afero.Fs,
 	paths chan string,
-	countBar ProgressBar,
-	sizeBar ProgressBar,
+	pb DoubleProgressBar,
 	globalWg *sync.WaitGroup) <-chan catalog.Item {
 
 	out := make(chan catalog.Item, 10)
@@ -176,15 +161,14 @@ func readCatalogItems(fs afero.Fs,
 						paths <- "" // make one of the siblings stop
 						break
 					}
-					catalogFile(fs, path, out, countBar, sizeBar)
+					catalogFile(fs, path, out, pb)
 				}
 				wg.Done()
 			}()
 		}
 		wg.Wait()
 		out <- catalog.Item{}
-		sizeBar.SetTotal(sizeBar.Current(), true)
-		countBar.SetTotal(countBar.Current(), true)
+		pb.SetTotal(pb.CurrentCount(), pb.CurrentSize())
 	}()
 
 	return out
@@ -200,8 +184,7 @@ func checkExistingItems(fs afero.Fs,
 	deepCheck bool,
 	paths chan string,
 	c catalog.Catalog,
-	countBar ProgressBar,
-	sizeBar ProgressBar,
+	pb DoubleProgressBar,
 	ok chan<- string,
 	changed chan<- string,
 	globalWg *sync.WaitGroup) {
@@ -220,11 +203,11 @@ func checkExistingItems(fs afero.Fs,
 						break
 					}
 					if deepCheck {
-						if err := checkCatalogFile(fs, path, c, countBar, sizeBar, ok, changed); err != nil {
+						if err := checkCatalogFile(fs, path, c, pb, ok, changed); err != nil {
 							log.Println(err)
 						}
 					} else {
-						if err := quickCheckCatalogFile(fs, path, c, countBar, sizeBar, ok, changed); err != nil {
+						if err := quickCheckCatalogFile(fs, path, c, pb, ok, changed); err != nil {
 							log.Println(err)
 						}
 
@@ -241,7 +224,7 @@ func checkExistingItems(fs afero.Fs,
 
 // sumSizes calculates the sum of the numbers read from the sizes channel.
 // It can be interrupted with the done channel
-func sumSizes(sizes <-chan int64, countBar ProgressBar, sizeBar ProgressBar, fileCount chan<- int64, wg *sync.WaitGroup) {
+func sumSizes(sizes <-chan int64, pb DoubleProgressBar, fileCount chan<- int64, wg *sync.WaitGroup) {
 	defer wg.Done()
 	total := int64(0)
 	count := int64(0)
@@ -252,40 +235,10 @@ func sumSizes(sizes <-chan int64, countBar ProgressBar, sizeBar ProgressBar, fil
 		total += s
 		count++
 	}
-	sizeBar.SetTotal(total, true)
-	countBar.SetTotal(count, true)
+	pb.SetTotal(count, total)
 	if fileCount != nil {
 		fileCount <- count
 	}
-}
-
-func createProgressBars() (*mpb.Progress, ProgressBar, ProgressBar) {
-	p := mpb.New(
-		mpb.WithRefreshRate(100 * time.Millisecond),
-	)
-	countName := "Number of Files"
-	countBar := p.AddBar(math.MaxInt64,
-		mpb.PrependDecorators(
-			decor.Name(countName, decor.WC{W: len(countName) + 2, C: decor.DidentRight}),
-			// The counters must be removed on completion because if the total stays 0 (no file found),
-			// on completion it looks like it jumps to some memory garbage
-			decor.OnComplete(decor.CountersNoUnit("%8d / %8d "), ""),
-		),
-		mpb.AppendDecorators(decor.Percentage()),
-	)
-	sizeName := "Processed Size"
-	sizeBar := p.AddBar(math.MaxInt64,
-		mpb.PrependDecorators(
-			decor.Name(sizeName, decor.WC{W: len(countName) + 2, C: decor.DidentRight}),
-			// see above
-			decor.OnComplete(decor.CountersKibiByte("%8.1f / %8.1f "), ""),
-		),
-		mpb.AppendDecorators(
-			decor.Percentage(),
-			decor.AverageSpeed(decor.UnitKiB, " %6.1f"),
-		),
-	)
-	return p, countBar, sizeBar
 }
 
 func updateAndSaveCatalog(fs afero.Fs, c catalog.Catalog, catalogPath string, items <-chan catalog.Item,
@@ -326,20 +279,19 @@ func saveCatalog(fs afero.Fs, catalogPath string, items <-chan catalog.Item,
 // ScanFolder recursively scans the root folder and adds all files to the catalog
 func ScanFolder(fs afero.Fs, root string, filter FileFilter) catalog.Catalog {
 	var wg sync.WaitGroup
-	p, countBar, sizeBar := createProgressBars()
+	pb := newDoubleProgressBar()
 	wg.Add(5)
 	files, sizes := walkFolder(fs, root, &wg)
 	filteredFiles := filterFiles(files, filter, &wg)
-	items := readCatalogItems(fs, filteredFiles, countBar, sizeBar, &wg)
-	go sumSizes(sizes, countBar, sizeBar, nil, &wg)
+	items := readCatalogItems(fs, filteredFiles, pb, &wg)
+	go sumSizes(sizes, pb, nil, &wg)
 	result := make(chan catalog.Catalog, 1)
 	catalogFilePath := filepath.Join(root, catalog.CatalogFileName)
 	go saveCatalog(fs, catalogFilePath, items, result, &wg)
 	wg.Wait()
 	ret := <-result
-	sizeBar.SetTotal(sizeBar.Current(), true)
-	countBar.SetTotal(countBar.Current(), true)
-	p.Wait()
+	pb.SetTotal(pb.CurrentCount(), pb.CurrentSize())
+	pb.Wait()
 	return ret
 }
 
@@ -373,21 +325,20 @@ func fileSizes(fs afero.Fs, paths map[string]bool, wg *sync.WaitGroup) (chan str
 // If new files are missing from the catalog they are added and a modified catalog is returned.
 func ScanAdd(fs afero.Fs, c catalog.Catalog, diff FileSystemDiff) catalog.Catalog {
 	var wg sync.WaitGroup
-	p, countBar, sizeBar := createProgressBars()
+	pb := newDoubleProgressBar()
 	wg.Add(4)
 	const root = "."
 	files, sizes := fileSizes(fs, diff.Add, &wg)
-	items := readCatalogItems(fs, files, countBar, sizeBar, &wg)
-	go sumSizes(sizes, countBar, sizeBar, nil, &wg)
+	items := readCatalogItems(fs, files, pb, &wg)
+	go sumSizes(sizes, pb, nil, &wg)
 
 	result := make(chan catalog.Catalog, 1)
 	catalogFilePath := filepath.Join(root, catalog.CatalogFileName)
 	go updateAndSaveCatalog(fs, c, catalogFilePath, items, result, &wg)
 	wg.Wait()
 	ret := <-result
-	sizeBar.SetTotal(sizeBar.Current(), true)
-	countBar.SetTotal(countBar.Current(), true)
-	p.Wait()
+	pb.SetTotal(pb.CurrentCount(), pb.CurrentSize())
+	pb.Wait()
 	return ret
 }
 
@@ -406,7 +357,7 @@ func QuickCheck(fs afero.Fs, c catalog.Catalog) bool {
 }
 
 //
-// func readAndCheckCatalogItems(fs afero.Fs, paths <-chan string, c catalog.Catalog, countBar ProgressBar, sizeBar ProgressBar) bool {
+// func readAndCheckCatalogItems(fs afero.Fs, paths <-chan string, c catalog.Catalog, dpb DoubleProgressBar) bool {
 // 	var wg sync.WaitGroup
 // 	const concurrency = 6
 // 	wg.Add(concurrency)
@@ -418,7 +369,7 @@ func QuickCheck(fs afero.Fs, c catalog.Catalog) bool {
 // 					if oldItem, ok := c.Item(path); !ok {
 //
 // 					}
-// 					catalogFile(fs, path, out, countBar, sizeBar)
+// 					catalogFile(fs, path, out, pb)
 // 				}
 // 				wg.Done()
 // 			}()
@@ -467,7 +418,7 @@ func collectFiles(c <-chan string, m map[string]bool, wg *sync.WaitGroup, label 
 	}
 }
 
-func collectUnknownFiles(fs afero.Fs, c <-chan string, m map[string]bool, countBar ProgressBar, sizeBar ProgressBar, wg *sync.WaitGroup) {
+func collectUnknownFiles(fs afero.Fs, c <-chan string, m map[string]bool, pb DoubleProgressBar, wg *sync.WaitGroup) {
 	defer wg.Done()
 	for file := range c {
 		if file == "" {
@@ -478,8 +429,7 @@ func collectUnknownFiles(fs afero.Fs, c <-chan string, m map[string]bool, countB
 			fmt.Printf("Cannot get file size: %v\n", err)
 			return
 		}
-		sizeBar.IncrBy(int(fi.Size()))
-		countBar.IncrBy(1)
+		pb.IncrBy(int(fi.Size()))
 		m[file] = true
 	}
 }
@@ -492,21 +442,21 @@ func DiffFiltered(fs afero.Fs, c catalog.Catalog, filter FileFilter, deepCheck b
 	var wg sync.WaitGroup
 	wg.Add(8)
 
-	p, countBar, sizeBar := createProgressBars()
+	pb := newDoubleProgressBar()
 
 	files, sizes := walkFolder(fs, ".", &wg)
 	filteredFiles := filterFiles(files, filter, &wg)
 	knownFiles, unknownFiles := filterByCatalog(filteredFiles, c, &wg)
-	checkExistingItems(fs, deepCheck, knownFiles, c, countBar, sizeBar, okFiles, changedFiles, &wg)
-	go sumSizes(sizes, countBar, sizeBar, nil, &wg)
+	checkExistingItems(fs, deepCheck, knownFiles, c, pb, okFiles, changedFiles, &wg)
+	go sumSizes(sizes, pb, nil, &wg)
 	ret := NewFileSystemDiff()
 
 	go collectFiles(okFiles, ret.Ok, &wg, "ok")
 	go collectFiles(changedFiles, ret.Update, &wg, "changed")
-	go collectUnknownFiles(fs, unknownFiles, ret.Add, countBar, sizeBar, &wg)
+	go collectUnknownFiles(fs, unknownFiles, ret.Add, pb, &wg)
 	wg.Wait()
 
-	p.Wait()
+	pb.Wait()
 
 	for item := range c.AllItems() {
 		if item.Path == "" {
