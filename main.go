@@ -150,7 +150,8 @@ func main() {
 		fmt.Printf("Cannot initialize folder: %v\n", err)
 		os.Exit(1)
 	}
-	_, importName := filepath.Split(os.Args[1])
+	_, importName := filepath.Split(filepath.Clean(os.Args[1]))
+	// fmt.Printf("-------------------- importName = %v|%v\n", a, importName)
 
 	noticeFs := afero.NewBasePathFs(stagingFs, importName)
 	createIncompleteRunNotice(noticeFs)
