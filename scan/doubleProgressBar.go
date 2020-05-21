@@ -3,6 +3,7 @@ package scan
 // ProgressBar is the minimal progress bar interface used in CoBack.
 import (
 	"math"
+	"sync"
 	"time"
 
 	"github.com/vbauerster/mpb"
@@ -23,9 +24,12 @@ type doubleProgressBar struct {
 	count    *mpb.Bar
 	size     *mpb.Bar
 	totalSet bool
+	mux      sync.Mutex
 }
 
 func (dpb *doubleProgressBar) SetTotal(count int64, size int64) {
+	dpb.mux.Lock()
+	defer dpb.mux.Unlock()
 	// if dpb.totalSet {
 	// 	panic("Total was already set")
 	// }
@@ -35,19 +39,27 @@ func (dpb *doubleProgressBar) SetTotal(count int64, size int64) {
 }
 
 func (dpb *doubleProgressBar) IncrBy(n int) {
+	dpb.mux.Lock()
+	defer dpb.mux.Unlock()
 	dpb.count.IncrBy(1)
 	dpb.size.IncrBy(n)
 }
 
 func (dpb *doubleProgressBar) CurrentCount() int64 {
+	dpb.mux.Lock()
+	defer dpb.mux.Unlock()
 	return dpb.count.Current()
 }
 
 func (dpb *doubleProgressBar) CurrentSize() int64 {
+	dpb.mux.Lock()
+	defer dpb.mux.Unlock()
 	return dpb.size.Current()
 }
 
 func (dpb *doubleProgressBar) Wait() {
+	dpb.mux.Lock()
+	defer dpb.mux.Unlock()
 	dpb.master.Wait()
 }
 
@@ -77,5 +89,5 @@ func newDoubleProgressBar() DoubleProgressBar {
 			decor.AverageSpeed(decor.UnitKiB, " %6.1f"),
 		),
 	)
-	return &doubleProgressBar{p, countBar, sizeBar, false}
+	return &doubleProgressBar{p, countBar, sizeBar, false, sync.Mutex{}}
 }
