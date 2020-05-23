@@ -22,7 +22,7 @@ func TestWalkEmptyFolder(t *testing.T) {
 	fs.Mkdir("root", 0755)
 	var wg sync.WaitGroup
 	wg.Add(1)
-	files, sizes := walkFolder(fs, "root", &wg)
+	files := walkFolder(fs, "root", &wg)
 	wg.Wait()
 	fileFound := false
 	select {
@@ -31,46 +31,31 @@ func TestWalkEmptyFolder(t *testing.T) {
 	default:
 	}
 
-	sizeFound := false
-	select {
-	case size := <-sizes:
-		sizeFound = size != -1
-	default:
-	}
 	th.Equals(t, false, fileFound)
-	th.Equals(t, false, sizeFound)
 }
 
 func TestWalkFolderOneLevel(t *testing.T) {
 	fs := fsh.CreateSafeFs("../test_data/subfolder")
 	var wg sync.WaitGroup
 	wg.Add(1)
-	files, sizes := walkFolder(fs, "", &wg)
+	files := walkFolder(fs, "", &wg)
 	wg.Wait()
 
 	expectedFiles := []string{"file1.bin", "file2.bin"}
 	actualFiles := cth.ReadStringChannel(files)
-
-	expectedSizes := []int64{1024, 1500}
-	actualSizes := cth.ReadInt64Channel(sizes)
 	th.Equals(t, expectedFiles, actualFiles)
-	th.Equals(t, expectedSizes, actualSizes)
 }
 
 func TestWalkFolderRecursive(t *testing.T) {
 	fs := fsh.CreateSafeFs("../test_data")
 	var wg sync.WaitGroup
 	wg.Add(1)
-	files, sizes := walkFolder(fs, "", &wg)
+	files := walkFolder(fs, "", &wg)
 	wg.Wait()
 
 	expectedFiles := []string{"subfolder/file1.bin", "subfolder/file2.bin", "test1.txt", "test2.txt"}
 	actualFiles := cth.ReadStringChannel(files)
-
-	expectedSizes := []int64{1024, 1500, 1160, 1304}
-	actualSizes := cth.ReadInt64Channel(sizes)
 	th.Equals(t, expectedFiles, actualFiles)
-	th.Equals(t, expectedSizes, actualSizes)
 }
 
 func TestWalkFolderIgnoreCatalog(t *testing.T) {
@@ -78,16 +63,54 @@ func TestWalkFolderIgnoreCatalog(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 	fs.Create(catalog.CatalogFileName)
-	files, sizes := walkFolder(fs, "", &wg)
+	files := walkFolder(fs, "", &wg)
 	wg.Wait()
 
 	expectedFiles := []string{"subfolder/file1.bin", "subfolder/file2.bin", "test1.txt", "test2.txt"}
 	actualFiles := cth.ReadStringChannel(files)
-
-	expectedSizes := []int64{1024, 1500, 1160, 1304}
-	actualSizes := cth.ReadInt64Channel(sizes)
 	th.Equals(t, expectedFiles, actualFiles)
-	th.Equals(t, expectedSizes, actualSizes)
+}
+
+func TestFileStatsEmptyFolder(t *testing.T) {
+	fs := afero.NewMemMapFs()
+	fs.Mkdir("root", 0755)
+	count, size := fileStats(fs, "root", noFilter{})
+	th.Equals(t, int64(0), count)
+	th.Equals(t, int64(0), size)
+}
+
+func TestFileStatsOneLevel(t *testing.T) {
+	fs := fsh.CreateSafeFs("../test_data/subfolder")
+	count, size := fileStats(fs, "", noFilter{})
+
+	th.Equals(t, int64(2), count)
+	th.Equals(t, int64(1024+1500), size)
+}
+
+func TestFileStatsRecursive(t *testing.T) {
+	fs := fsh.CreateSafeFs("../test_data")
+	count, size := fileStats(fs, "", noFilter{})
+
+	th.Equals(t, int64(4), count)
+	th.Equals(t, int64(1024+1500+1160+1304), size)
+}
+
+func TestFileStatsIgnoreCatalog(t *testing.T) {
+	fs := fsh.CreateSafeFs("../test_data")
+	fs.Create(catalog.CatalogFileName)
+	count, size := fileStats(fs, "", noFilter{})
+
+	th.Equals(t, int64(4), count)
+	th.Equals(t, int64(1024+1500+1160+1304), size)
+}
+
+func TestFileStatsFilter(t *testing.T) {
+	fs := fsh.CreateSafeFs("../test_data")
+	fs.Create(catalog.CatalogFileName)
+	count, size := fileStats(fs, "", ExtensionFilter("txt"))
+
+	th.Equals(t, int64(2), count)
+	th.Equals(t, int64(1024+1500), size)
 }
 
 func TestFilterEmptyChannel(t *testing.T) {

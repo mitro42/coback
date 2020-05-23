@@ -36,9 +36,11 @@ func NewFileSystemDiff() FileSystemDiff {
 	}
 }
 
-func walkFolder(fs afero.Fs, root string, wg *sync.WaitGroup) (<-chan string, <-chan int64) {
+// Asynchronously enumerates all files in a folder, returns a channel that will
+// contain all the relative paths.
+// When the enumeration is finished an empty string is sent to the channel as the last item.
+func walkFolder(fs afero.Fs, root string, wg *sync.WaitGroup) <-chan string {
 	files := make(chan string, 100000)
-	sizes := make(chan int64, 100000)
 	if exist, err := afero.DirExists(fs, root); err != nil || !exist {
 		log.Fatalf("The folder '%v' doesn't exist", root)
 	}
@@ -47,16 +49,15 @@ func walkFolder(fs afero.Fs, root string, wg *sync.WaitGroup) (<-chan string, <-
 		afero.Walk(fs, root, func(path string, fi os.FileInfo, err error) error {
 			if !fi.IsDir() && fi.Name() != catalog.CatalogFileName {
 				files <- path
-				sizes <- fi.Size()
 			}
 			return nil
 		})
 		files <- ""
-		sizes <- -1
 	}()
-	return files, sizes
+	return files
 }
 
+// filters the paths read from the files channel and the one that pass the filter will be sent to the returned channel
 func filterFiles(files <-chan string, filter FileFilter, wg *sync.WaitGroup) chan string {
 	filtered := make(chan string, 10000)
 
@@ -276,21 +277,38 @@ func saveCatalog(fs afero.Fs, catalogPath string, items <-chan catalog.Item,
 	updateAndSaveCatalog(fs, c, catalogPath, items, result, wg)
 }
 
+// Counts the files and sums their sizes in a folder. Only files that pass the filter are counted.
+func fileStats(fs afero.Fs, root string, filter FileFilter) (count int64, size int64) {
+	if exist, err := afero.DirExists(fs, root); err != nil || !exist {
+		log.Fatalf("The folder '%v' doesn't exist", root)
+	}
+	afero.Walk(fs, root, func(path string, fi os.FileInfo, err error) error {
+		if !fi.IsDir() && fi.Name() != catalog.CatalogFileName && filter.Include(fi.Name()) {
+			count++
+			size += fi.Size()
+		}
+		return nil
+	})
+	return
+}
+
 // ScanFolder recursively scans the root folder and adds all files to the catalog
 func ScanFolder(fs afero.Fs, root string, filter FileFilter) catalog.Catalog {
-	var wg sync.WaitGroup
+	fileCount, totalSize := fileStats(fs, root, filter)
 	pb := newDoubleProgressBar()
-	wg.Add(5)
-	files, sizes := walkFolder(fs, root, &wg)
+	pb.SetTotal(fileCount, totalSize)
+
+	var wg sync.WaitGroup
+	wg.Add(4)
+	files := walkFolder(fs, root, &wg)
 	filteredFiles := filterFiles(files, filter, &wg)
 	items := readCatalogItems(fs, filteredFiles, pb, &wg)
-	go sumSizes(sizes, pb, nil, &wg)
 	result := make(chan catalog.Catalog, 1)
 	catalogFilePath := filepath.Join(root, catalog.CatalogFileName)
 	go saveCatalog(fs, catalogFilePath, items, result, &wg)
 	wg.Wait()
 	ret := <-result
-	pb.SetTotal(pb.CurrentCount(), pb.CurrentSize())
+
 	pb.Wait()
 	return ret
 }
@@ -321,7 +339,7 @@ func fileSizes(fs afero.Fs, paths map[string]bool, wg *sync.WaitGroup) (chan str
 	return files, sizes
 }
 
-// ScanAdd performs a scan on a folder and checks the contents against a catalog   .
+// ScanAdd performs a scan on a folder and checks the contents against a catalog.
 // If new files are missing from the catalog they are added and a modified catalog is returned.
 func ScanAdd(fs afero.Fs, c catalog.Catalog, diff FileSystemDiff) catalog.Catalog {
 	var wg sync.WaitGroup
@@ -440,15 +458,16 @@ func DiffFiltered(fs afero.Fs, c catalog.Catalog, filter FileFilter, deepCheck b
 	okFiles := make(chan string, 100)
 	changedFiles := make(chan string, 100)
 	var wg sync.WaitGroup
-	wg.Add(8)
+	wg.Add(7)
 
 	pb := newDoubleProgressBar()
+	count, size := fileStats(fs, ".", filter)
+	pb.SetTotal(count, size)
 
-	files, sizes := walkFolder(fs, ".", &wg)
+	files := walkFolder(fs, ".", &wg)
 	filteredFiles := filterFiles(files, filter, &wg)
 	knownFiles, unknownFiles := filterByCatalog(filteredFiles, c, &wg)
 	checkExistingItems(fs, deepCheck, knownFiles, c, pb, okFiles, changedFiles, &wg)
-	go sumSizes(sizes, pb, nil, &wg)
 	ret := NewFileSystemDiff()
 
 	go collectFiles(okFiles, ret.Ok, &wg, "ok")
