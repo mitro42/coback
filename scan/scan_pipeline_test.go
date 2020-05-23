@@ -2,7 +2,6 @@ package scan
 
 import (
 	"fmt"
-	"math/rand"
 	"os"
 	"path/filepath"
 	"strings"
@@ -158,28 +157,6 @@ func TestFilterExtension(t *testing.T) {
 	wg.Wait()
 	actual := cth.ReadStringChannel(output)
 	th.Equals(t, expected, actual)
-}
-
-func TestSumSizes(t *testing.T) {
-	inputLength := 1000
-	input := make(chan int64, inputLength+1)
-	sum := int64(0)
-	for i := 0; i < inputLength; i++ {
-		v := int64(rand.Uint32())
-		sum += v
-		input <- v
-	}
-	input <- -1
-
-	var wg sync.WaitGroup
-	wg.Add(1)
-	pb := newMockDoubleProgressBar()
-	sumSizes(input, pb, nil, &wg)
-	wg.Wait()
-	close(input)
-
-	th.Equals(t, int64(inputLength), pb.countTotal)
-	th.Equals(t, sum, pb.sizeTotal)
 }
 
 func TestCheckCatalogFileMissing(t *testing.T) {

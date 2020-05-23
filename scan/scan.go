@@ -223,25 +223,6 @@ func checkExistingItems(fs afero.Fs,
 
 }
 
-// sumSizes calculates the sum of the numbers read from the sizes channel.
-// It can be interrupted with the done channel
-func sumSizes(sizes <-chan int64, pb DoubleProgressBar, fileCount chan<- int64, wg *sync.WaitGroup) {
-	defer wg.Done()
-	total := int64(0)
-	count := int64(0)
-	for s := range sizes {
-		if s == -1 {
-			break
-		}
-		total += s
-		count++
-	}
-	pb.SetTotal(count, total)
-	if fileCount != nil {
-		fileCount <- count
-	}
-}
-
 func updateAndSaveCatalog(fs afero.Fs, c catalog.Catalog, catalogPath string, items <-chan catalog.Item,
 	result chan<- catalog.Catalog, wg *sync.WaitGroup) {
 	defer wg.Done()
@@ -318,37 +299,49 @@ func Scan(fs afero.Fs) catalog.Catalog {
 	return ScanFolder(fs, ".", noFilter{})
 }
 
-// fileSizes gets a set of file paths (as returned by Diff) and return their file sizes
+// walkDiff gets a set of file paths (as returned by Diff) and return their paths
 // the same way as walkFolder
-func fileSizes(fs afero.Fs, paths map[string]bool, wg *sync.WaitGroup) (chan string, <-chan int64) {
+func walkDiff(fs afero.Fs, paths map[string]bool, wg *sync.WaitGroup) chan string {
 	files := make(chan string, 100000)
-	sizes := make(chan int64, 100000)
 	go func() {
 		defer wg.Done()
 		for path := range paths {
-			fi, err := fs.Stat(path)
+			_, err := fs.Stat(path)
 			if err != nil {
 				log.Printf("Cannot read file '%v'", path)
 			}
 			files <- path
-			sizes <- fi.Size()
 		}
 		files <- ""
-		sizes <- -1
 	}()
-	return files, sizes
+	return files
+}
+
+// fileStatsFromDiff gets a set of file paths (as returned by Diff) and return the
+// count of files and the sum of their sizes, the same way as fileStats
+func fileStatsFromDiff(fs afero.Fs, paths map[string]bool) (count int64, size int64) {
+	for path := range paths {
+		fi, err := fs.Stat(path)
+		if err != nil {
+			log.Printf("Cannot read file '%v'", path)
+		}
+		size += fi.Size()
+	}
+	return int64(len(paths)), size
 }
 
 // ScanAdd performs a scan on a folder and checks the contents against a catalog.
 // If new files are missing from the catalog they are added and a modified catalog is returned.
 func ScanAdd(fs afero.Fs, c catalog.Catalog, diff FileSystemDiff) catalog.Catalog {
 	var wg sync.WaitGroup
+	count, size := fileStatsFromDiff(fs, diff.Add)
 	pb := newDoubleProgressBar()
-	wg.Add(4)
+	pb.SetTotal(count, size)
+
+	wg.Add(3)
 	const root = "."
-	files, sizes := fileSizes(fs, diff.Add, &wg)
+	files := walkDiff(fs, diff.Add, &wg)
 	items := readCatalogItems(fs, files, pb, &wg)
-	go sumSizes(sizes, pb, nil, &wg)
 
 	result := make(chan catalog.Catalog, 1)
 	catalogFilePath := filepath.Join(root, catalog.CatalogFileName)
@@ -460,8 +453,8 @@ func DiffFiltered(fs afero.Fs, c catalog.Catalog, filter FileFilter, deepCheck b
 	var wg sync.WaitGroup
 	wg.Add(7)
 
-	pb := newDoubleProgressBar()
 	count, size := fileStats(fs, ".", filter)
+	pb := newDoubleProgressBar()
 	pb.SetTotal(count, size)
 
 	files := walkFolder(fs, ".", &wg)
