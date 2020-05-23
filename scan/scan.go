@@ -169,7 +169,6 @@ func readCatalogItems(fs afero.Fs,
 		}
 		wg.Wait()
 		out <- catalog.Item{}
-		pb.SetTotal(pb.CurrentCount(), pb.CurrentSize())
 	}()
 
 	return out
@@ -334,9 +333,9 @@ func fileStatsFromDiff(fs afero.Fs, paths map[string]bool) (count int64, size in
 // If new files are missing from the catalog they are added and a modified catalog is returned.
 func ScanAdd(fs afero.Fs, c catalog.Catalog, diff FileSystemDiff) catalog.Catalog {
 	var wg sync.WaitGroup
-	count, size := fileStatsFromDiff(fs, diff.Add)
+	fileCount, totalSize := fileStatsFromDiff(fs, diff.Add)
 	pb := newDoubleProgressBar()
-	pb.SetTotal(count, size)
+	pb.SetTotal(fileCount, totalSize)
 
 	wg.Add(3)
 	const root = "."
@@ -348,50 +347,9 @@ func ScanAdd(fs afero.Fs, c catalog.Catalog, diff FileSystemDiff) catalog.Catalo
 	go updateAndSaveCatalog(fs, c, catalogFilePath, items, result, &wg)
 	wg.Wait()
 	ret := <-result
-	pb.SetTotal(pb.CurrentCount(), pb.CurrentSize())
 	pb.Wait()
 	return ret
 }
-
-// // Scan recursively scans the whole file system
-// func ResumeScan(fs afero.Fs, c catalog.Catalog) {
-// 	return ScanFolder(fs, ".")
-// }
-
-// QuickCheck scans a folder and compare its contents to the contents of the catalog.
-// The check only compares the file names, sizes, and modification times, and ignores
-// the content.
-// Returns true if the catalog is consistent with the file system,
-// and false if there is a mismatch
-func QuickCheck(fs afero.Fs, c catalog.Catalog) bool {
-	return true
-}
-
-//
-// func readAndCheckCatalogItems(fs afero.Fs, paths <-chan string, c catalog.Catalog, dpb DoubleProgressBar) bool {
-// 	var wg sync.WaitGroup
-// 	const concurrency = 6
-// 	wg.Add(concurrency)
-// 	go func() {
-// 		defer close(out)
-// 		for i := 0; i < concurrency; i++ {
-// 			go func() {
-// 				for path := range paths {
-// 					if oldItem, ok := c.Item(path); !ok {
-//
-// 					}
-// 					catalogFile(fs, path, out, pb)
-// 				}
-// 				wg.Done()
-// 			}()
-// 		}
-// 		wg.Wait()
-// 		sizeBar.SetTotal(sizeBar.Current(), true)
-// 		countBar.SetTotal(countBar.Current(), true)
-// 	}()
-//
-// 	return out
-// }
 
 // filterByCatalog separate the incoming files (typically contents of the file system)
 // to two channels based on whether they are present in the catalog or not.

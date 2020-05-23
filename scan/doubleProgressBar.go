@@ -20,22 +20,24 @@ type DoubleProgressBar interface {
 }
 
 type doubleProgressBar struct {
-	master   *mpb.Progress
-	count    *mpb.Bar
-	size     *mpb.Bar
-	totalSet bool
-	mux      sync.Mutex
+	master     *mpb.Progress
+	count      *mpb.Bar
+	size       *mpb.Bar
+	countTotal int64
+	sizeTotal  int64
+	mux        sync.Mutex
 }
 
 func (dpb *doubleProgressBar) SetTotal(count int64, size int64) {
 	dpb.mux.Lock()
 	defer dpb.mux.Unlock()
-	// if dpb.totalSet {
-	// 	panic("Total was already set")
-	// }
-	dpb.count.SetTotal(count, true)
-	dpb.size.SetTotal(size, true)
-	dpb.totalSet = true
+	if dpb.countTotal != -1 && dpb.sizeTotal != -1 {
+		panic("Total was already set")
+	}
+	dpb.count.SetTotal(count, false)
+	dpb.size.SetTotal(size, false)
+	dpb.countTotal = count
+	dpb.sizeTotal = size
 }
 
 func (dpb *doubleProgressBar) IncrBy(n int) {
@@ -60,6 +62,8 @@ func (dpb *doubleProgressBar) CurrentSize() int64 {
 func (dpb *doubleProgressBar) Wait() {
 	dpb.mux.Lock()
 	defer dpb.mux.Unlock()
+	dpb.count.SetTotal(dpb.countTotal, true)
+	dpb.size.SetTotal(dpb.sizeTotal, true)
 	dpb.master.Wait()
 }
 
@@ -89,5 +93,5 @@ func newDoubleProgressBar() DoubleProgressBar {
 			decor.AverageSpeed(decor.UnitKiB, " %6.1f"),
 		),
 	)
-	return &doubleProgressBar{p, countBar, sizeBar, false, sync.Mutex{}}
+	return &doubleProgressBar{p, countBar, sizeBar, -1, -1, sync.Mutex{}}
 }
