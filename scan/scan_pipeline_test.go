@@ -182,8 +182,8 @@ func TestCheckCatalogFileNotInCatalog(t *testing.T) {
 	changedFiles := make(chan string, 1)
 	th.Nok(t, checkCatalogFile(fs, "test1.txt", c, pb, okFiles, changedFiles), "Cannot find file in catalog 'test1.txt'")
 	th.Equals(t, 1, pb.incrByCount)
-	th.Equals(t, int64(1), pb.count)
-	th.Equals(t, int64(1160), pb.size)
+	th.Equals(t, int64(1), pb.CurrentCount())
+	th.Equals(t, int64(1160), pb.CurrentSize())
 	th.Equals(t, 0, len(okFiles))
 	th.Equals(t, 0, len(changedFiles))
 }
@@ -198,8 +198,8 @@ func TestCheckCatalogFileSuccess(t *testing.T) {
 	changedFiles := make(chan string, 1)
 	th.Ok(t, checkCatalogFile(fs, "test1.txt", c, pb, okFiles, changedFiles))
 	th.Equals(t, 1, pb.incrByCount)
-	th.Equals(t, int64(1), pb.count)
-	th.Equals(t, int64(1160), pb.size)
+	th.Equals(t, int64(1), pb.CurrentCount())
+	th.Equals(t, int64(1160), pb.CurrentSize())
 	th.Equals(t, "test1.txt", <-okFiles)
 	th.Equals(t, 0, len(changedFiles))
 }
@@ -216,8 +216,8 @@ func TestCheckCatalogFileMismatch(t *testing.T) {
 	changedFiles := make(chan string, 1)
 	th.Ok(t, checkCatalogFile(fs, modifiedFile, c, pb, okFiles, changedFiles))
 	th.Equals(t, 1, pb.incrByCount)
-	th.Equals(t, int64(1), pb.count)
-	th.Equals(t, int64(1175), pb.size)
+	th.Equals(t, int64(1), pb.CurrentCount())
+	th.Equals(t, int64(1175), pb.CurrentSize())
 	th.Equals(t, 0, len(okFiles))
 	th.Equals(t, "test1.txt", <-changedFiles)
 }
@@ -245,8 +245,8 @@ func TestQuickCheckCatalogFileNotInCatalog(t *testing.T) {
 	changedFiles := make(chan string, 1)
 	th.Nok(t, quickCheckCatalogFile(fs, "test1.txt", c, pb, okFiles, changedFiles), "Cannot find file in catalog 'test1.txt'")
 	th.Equals(t, 1, pb.incrByCount)
-	th.Equals(t, int64(1), pb.count)
-	th.Equals(t, int64(1160), pb.size)
+	th.Equals(t, int64(1), pb.CurrentCount())
+	th.Equals(t, int64(1160), pb.CurrentSize())
 	th.Equals(t, 0, len(okFiles))
 	th.Equals(t, 0, len(changedFiles))
 }
@@ -261,8 +261,8 @@ func TestQuickCheckCatalogFileSuccess(t *testing.T) {
 	changedFiles := make(chan string, 1)
 	th.Ok(t, quickCheckCatalogFile(fs, "test1.txt", c, pb, okFiles, changedFiles))
 	th.Equals(t, 1, pb.incrByCount)
-	th.Equals(t, int64(1), pb.count)
-	th.Equals(t, int64(1160), pb.size)
+	th.Equals(t, int64(1), pb.CurrentCount())
+	th.Equals(t, int64(1160), pb.CurrentSize())
 	th.Equals(t, "test1.txt", <-okFiles)
 	th.Equals(t, 0, len(changedFiles))
 }
@@ -279,8 +279,8 @@ func TestQuickCheckCatalogFileMismatch(t *testing.T) {
 	changedFiles := make(chan string, 1)
 	th.Ok(t, quickCheckCatalogFile(fs, modifiedFile, c, pb, okFiles, changedFiles))
 	th.Equals(t, 1, pb.incrByCount)
-	th.Equals(t, int64(1), pb.count)
-	th.Equals(t, int64(1175), pb.size)
+	th.Equals(t, int64(1), pb.CurrentCount())
+	th.Equals(t, int64(1175), pb.CurrentSize())
 	th.Equals(t, 0, len(okFiles))
 	th.Equals(t, "test1.txt", <-changedFiles)
 }
@@ -301,8 +301,8 @@ func TestQuickCheckCatalogFileContentMismatch(t *testing.T) {
 	changedFiles := make(chan string, 1)
 	th.Ok(t, quickCheckCatalogFile(fs, dummy0.Path, c, pb, okFiles, changedFiles))
 	th.Equals(t, 1, pb.incrByCount)
-	th.Equals(t, int64(1), pb.count)
-	th.Equals(t, int64(32), pb.size)
+	th.Equals(t, int64(1), pb.CurrentCount())
+	th.Equals(t, int64(32), pb.CurrentSize())
 	th.Equals(t, "subfolder/dummy1", <-okFiles)
 	th.Equals(t, 0, len(changedFiles))
 }
@@ -323,8 +323,8 @@ func TestQuickCheckCatalogFileSizeMismatch(t *testing.T) {
 	changedFiles := make(chan string, 1)
 	th.Ok(t, quickCheckCatalogFile(fs, dummy0.Path, c, pb, okFiles, changedFiles))
 	th.Equals(t, 1, pb.incrByCount)
-	th.Equals(t, int64(1), pb.count)
-	th.Equals(t, int64(47), pb.size)
+	th.Equals(t, int64(1), pb.CurrentCount())
+	th.Equals(t, int64(47), pb.CurrentSize())
 	th.Equals(t, 0, len(okFiles))
 	th.Equals(t, "subfolder/dummy1", <-changedFiles)
 }
@@ -343,8 +343,8 @@ func TestQuickCheckCatalogFileModificationTimeMismatch(t *testing.T) {
 	changedFiles := make(chan string, 1)
 	th.Ok(t, quickCheckCatalogFile(fs, dummy0.Path, c, pb, okFiles, changedFiles))
 	th.Equals(t, 1, pb.incrByCount)
-	th.Equals(t, int64(1), pb.count)
-	th.Equals(t, int64(32), pb.size)
+	th.Equals(t, int64(1), pb.CurrentCount())
+	th.Equals(t, int64(32), pb.CurrentSize())
 	th.Equals(t, 0, len(okFiles))
 	th.Equals(t, "subfolder/dummy1", <-changedFiles)
 }
@@ -379,8 +379,8 @@ func TestCheckExistingItemsSuccess(t *testing.T) {
 	inputFiles <- ""
 	wg.Wait()
 	th.Equals(t, 3, pb.incrByCount)
-	th.Equals(t, int64(3), pb.count)
-	th.Equals(t, int64(3488), pb.size)
+	th.Equals(t, int64(3), pb.CurrentCount())
+	th.Equals(t, int64(3488), pb.CurrentSize())
 	expOk := map[string]bool{"test1.txt": true, "subfolder/file1.bin": true, "test2.txt": true}
 	th.Equals(t, expOk, collectFilesSync(okFiles))
 }
@@ -506,8 +506,8 @@ func TestReadCatalogItems(t *testing.T) {
 		th.Assert(t, found, fmt.Sprintf("path '%v' returned buy readCatalogItems was not in the input", outputPath))
 	}
 	th.Equals(t, 4, pb.incrByCount)
-	th.Equals(t, int64(4), pb.count)
-	th.Equals(t, int64(4988), pb.size)
+	th.Equals(t, int64(4), pb.CurrentCount())
+	th.Equals(t, int64(4988), pb.CurrentSize())
 }
 
 func TestReadCatalogItemsEmpty(t *testing.T) {
